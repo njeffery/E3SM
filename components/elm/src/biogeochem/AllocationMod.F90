@@ -1467,7 +1467,7 @@ contains
                   ! calculate competition coefficients for NH4/NO3
                   ! first need to convert concentration to per soil water based
                   ! 2.76 consider soil adsorption effect on [NH4+] availability, based on Zhu et al., 2016 DOI: 10.1002/2016JG003554
-                  solution_nh4conc(c,j) = smin_nh4_vr(c,j) / (bd(c,j)*2.76 + h2osoi_vol(c,j)) ! convert to per soil water based
+                  solution_nh4conc(c,j) = smin_nh4_vr(c,j) / (bd(c,j)*2.76*1.0e-3_r8 + h2osoi_vol(c,j)) ! convert to per soil water based
                   solution_no3conc(c,j) = smin_no3_vr(c,j) /  h2osoi_vol(c,j) ! convert to per soil water based
                   e_km_nh4 = 0._r8
                   e_km_no3 = 0._r8
@@ -1476,6 +1476,7 @@ contains
                      if (veg_pp%active(p).and. (veg_pp%itype(p) .ne. noveg)) then
                         e_km_nh4 = e_km_nh4 + e_plant_scalar*frootc(p)*froot_prof(p,j)*veg_pp%wtcol(p)/km_plant_nh4(ivt(p))
                         e_km_no3 = e_km_no3 + e_plant_scalar*frootc(p)*froot_prof(p,j)*veg_pp%wtcol(p)/km_plant_no3(ivt(p))
+                        decompmicc(c,j) = decompmicc(c,j) + decompmicc_patch_vr(ivt(p),j)*veg_pp%wtcol(p)
                      end if
                   end do
                   e_km_nh4 = e_km_nh4 + e_decomp_scalar*decompmicc(c,j)*(1._r8/km_decomp_nh4 + 1._r8/km_nit)
