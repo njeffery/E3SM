@@ -23,10 +23,10 @@ module initVerticalMod
   use landunit_varcon, only : istdlak, istice_mec
   use fileutils      , only : getfil
   use LandunitType   , only : lun_pp                
-  use ColumnType     , only : col_pp           
+  use ColumnType     , only : col_pp          
+  use ncdio_pio
   use topounit_varcon, only : max_topounits
   use GridcellType     , only : grc_pp
-  use ncdio_pio
   !
   ! !PUBLIC TYPES:
   implicit none
