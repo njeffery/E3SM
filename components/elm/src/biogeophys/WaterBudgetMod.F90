@@ -5,7 +5,7 @@ module WaterBudgetMod
   use shr_sys_mod       , only : shr_sys_abort
   use decompMod         , only : bounds_type
   use abortutils        , only : endrun
-  use elm_varctl        , only : iulog
+  use clm_varctl        , only : iulog
   use atm2lndType       , only : atm2lnd_type
   use lnd2atmType       , only : lnd2atm_type
   use WaterstateType    , only : waterstate_type
@@ -35,9 +35,8 @@ module WaterBudgetMod
   integer, parameter :: f_evap = 3
   integer, parameter :: f_roff = 4
   integer, parameter :: f_ioff = 5
-  integer, parameter :: f_irri = 6
 
-  integer, parameter, public :: f_size = f_irri
+  integer, parameter, public :: f_size = f_ioff
 
   character(len=12),parameter :: fname(f_size) = &
        (/&
@@ -45,8 +44,7 @@ module WaterBudgetMod
        '        snow', &
        '        evap', &
        '      runoff', &
-       '      frzrof', &
-       '       irrig'  &
+       '      frzrof'  &
        /)
 
   !--- S for state ---
@@ -106,6 +104,8 @@ module WaterBudgetMod
 
   real(r8) :: budg_stateL(s_size, p_size)
   real(r8), public :: budg_stateG(s_size, p_size)
+
+  logical,save :: first_time = .true.
 
   !----- formats -----
   character(*),parameter :: FA0= "('    ',12x,(3x,a10,2x),' | ',(3x,a10,2x))"
@@ -271,7 +271,7 @@ contains
     ! !DESCRIPTION:
     !
     use domainMod, only : ldomain
-    use elm_varcon, only : re
+    use clm_varcon, only : re
     !
     implicit none
 
@@ -287,7 +287,6 @@ contains
     associate(                                                             &
          forc_rain          => atm2lnd_vars%forc_rain_not_downscaled_grc , &
          forc_snow          => atm2lnd_vars%forc_snow_not_downscaled_grc , &
-         qflx_irrig_supply  => atm2lnd_vars%supply_grc                   , &
          qflx_evap_tot      => lnd2atm_vars%qflx_evap_tot_grc            , &
          qflx_rofice        => lnd2atm_vars%qflx_rofice_grc              , &
          qflx_rofliq_qsur   => lnd2atm_vars%qflx_rofliq_qsur_grc         , &
@@ -330,7 +329,6 @@ contains
               - qflx_rofliq_qsub(g)*af - qflx_rofliq_qsubp(g)*af &
               - qflx_rofliq_qgwl(g)*af
          nf = f_ioff; budg_fluxL(nf,ip) = budg_fluxL(nf,ip) - qflx_rofice(g)*af
-         nf = f_irri; budg_fluxL(nf,ip) = budg_fluxL(nf,ip) + qflx_irrig_supply(g)*af
 
          nf = s_w_beg     ; budg_stateL(nf,ip) = budg_stateL(nf,ip) + begwb_grc(g)          *af
          nf = s_w_end     ; budg_stateL(nf,ip) = budg_stateL(nf,ip) + endwb_grc(g)          *af
@@ -673,8 +671,8 @@ contains
     !
     ! !USES:
     use subgridAveMod    , only : p2c, c2g
-    use elm_varpar       , only : nlevgrnd, nlevsoi, nlevurb
-    use elm_varcon       , only : spval
+    use clm_varpar       , only : nlevgrnd, nlevsoi, nlevurb
+    use clm_varcon       , only : spval
     use column_varcon    , only : icol_roof, icol_sunwall, icol_shadewall 
     use column_varcon    , only : icol_road_perv, icol_road_imperv
     use clm_time_manager , only : get_curr_date, get_prev_date, get_nstep
@@ -729,7 +727,7 @@ contains
     !
     ! !USES:
     use subgridAveMod    , only : c2g
-    use elm_varcon       , only : spval
+    use clm_varcon       , only : spval
     use clm_time_manager , only : get_curr_date, get_nstep
     !
     ! !ARGUMENTS:

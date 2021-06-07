@@ -12,12 +12,12 @@ module CH4Mod
   use shr_kind_mod       , only : r8 => shr_kind_r8
   use shr_infnan_mod     , only : nan => shr_infnan_nan, assignment(=)
   use shr_log_mod        , only : errMsg => shr_log_errMsg
-  use elm_varpar         , only : nlevsoi, ngases, nlevsno, nlevdecomp
-  use elm_varcon         , only : denh2o, denice, tfrz, grav, spval, rgas, grlnd
-  use elm_varcon         , only : catomw, s_con, d_con_w, d_con_g, c_h_inv, kh_theta, kh_tbase
+  use clm_varpar         , only : nlevsoi, ngases, nlevsno, nlevdecomp
+  use clm_varcon         , only : denh2o, denice, tfrz, grav, spval, rgas, grlnd
+  use clm_varcon         , only : catomw, s_con, d_con_w, d_con_g, c_h_inv, kh_theta, kh_tbase
   use landunit_varcon    , only : istdlak
   use clm_time_manager   , only : get_step_size, get_nstep
-  use elm_varctl         , only : iulog, use_cn, use_lch4
+  use clm_varctl         , only : iulog, use_cn, use_nitrif_denitrif, use_lch4
   use abortutils         , only : endrun
   use decompMod          , only : bounds_type
   use SharedParamsMod  , only : ParamsShareInst
@@ -226,7 +226,7 @@ contains
     !
     ! !USES:
     use shr_infnan_mod, only: nan => shr_infnan_nan, assignment(=)
-    use elm_varpar    , only: nlevgrnd
+    use clm_varpar    , only: nlevgrnd
     !
     ! !ARGUMENTS:
     class(ch4_type) :: this
@@ -311,6 +311,7 @@ contains
     allocate(this%conc_o2_unsat_col          (begc:endc,1:nlevgrnd)) ;  this%conc_o2_unsat_col          (:,:) = nan
     allocate(this%o2_decomp_depth_sat_col    (begc:endc,1:nlevgrnd)) ;  this%o2_decomp_depth_sat_col    (:,:) = nan          
     allocate(this%o2_decomp_depth_unsat_col  (begc:endc,1:nlevgrnd)) ;  this%o2_decomp_depth_unsat_col  (:,:) = nan
+    allocate(this%ch4_surf_flux_tot_col      (begc:endc))            ;  this%ch4_surf_flux_tot_col      (:)   = nan
 
     allocate(this%grnd_ch4_cond_patch        (begp:endp)) ;  this%grnd_ch4_cond_patch(:) = nan
     allocate(this%grnd_ch4_cond_col          (begc:endc)) ;  this%grnd_ch4_cond_col  (:) = nan
@@ -321,8 +322,8 @@ contains
   subroutine InitHistory(this, bounds)
     !
     ! !USES:
-    use elm_varpar , only : nlevgrnd, nlevdecomp
-    use elm_varctl , only : hist_wrtch4diag
+    use clm_varpar , only : nlevgrnd, nlevdecomp
+    use clm_varctl , only : hist_wrtch4diag
     use histFileMod, only : hist_addfld1d, hist_addfld2d, hist_addfld_decomp
     use CH4varcon  , only : allowlakeprod
     !
@@ -353,12 +354,12 @@ contains
     end if
 
     this%finundated_col(begc:endc) = spval
-    call hist_addfld1d (fname='FINUNDATED', units='1', &
+    call hist_addfld1d (fname='FINUNDATED', units='unitless', &
          avgflag='A', long_name='fractional inundated area of vegetated columns', &
          ptr_col=this%finundated_col)
 
     this%finundated_lag_col(begc:endc) = spval
-    call hist_addfld1d (fname='FINUNDATED_LAG', units='1',  &
+    call hist_addfld1d (fname='FINUNDATED_LAG', units='unitless',  &
          avgflag='A', long_name='time-lagged inundated fraction of vegetated columns', &
          ptr_col=this%finundated_lag_col)
 
@@ -523,28 +524,28 @@ contains
 
     if (hist_wrtch4diag) then
        this%o2stress_sat_col(begc:endc,1:nlevgrnd) = spval
-       call hist_addfld2d (fname='O2STRESS_SAT', units='1', type2d='levgrnd',  &
+       call hist_addfld2d (fname='O2STRESS_SAT', units='unitless', type2d='levgrnd',  &
             avgflag='A', long_name='Ratio of oxygen available to demanded for non-inundated area', &
             ptr_col=this%o2stress_sat_col)
     end if
 
     if (hist_wrtch4diag) then
        this%o2stress_unsat_col(begc:endc,1:nlevgrnd) = spval
-       call hist_addfld2d (fname='O2STRESS_UNSAT', units='1', type2d='levgrnd',  &
+       call hist_addfld2d (fname='O2STRESS_UNSAT', units='unitless', type2d='levgrnd',  &
             avgflag='A', long_name='Ratio of oxygen available to demanded for inundated / lake area', &
             ptr_col=this%o2stress_unsat_col)
     end if
 
     if (hist_wrtch4diag) then
        this%ch4stress_unsat_col(begc:endc,1:nlevgrnd) = spval
-       call hist_addfld2d (fname='CH4STRESS_UNSAT', units='1', type2d='levgrnd',  &
+       call hist_addfld2d (fname='CH4STRESS_UNSAT', units='unitless', type2d='levgrnd',  &
             avgflag='A', long_name='Ratio of methane available to total potential sink for inundated / lake area', &
             ptr_col=this%ch4stress_unsat_col)
     end if
 
     if (hist_wrtch4diag) then
        this%ch4stress_sat_col(begc:endc,1:nlevgrnd) = spval
-       call hist_addfld2d (fname='CH4STRESS_SAT', units='1', type2d='levgrnd',  &
+       call hist_addfld2d (fname='CH4STRESS_SAT', units='unitless', type2d='levgrnd',  &
             avgflag='A', long_name='Ratio of methane available to total potential sink for non-inundated area', &
             ptr_col=this%ch4stress_sat_col)
     end if
@@ -593,21 +594,21 @@ contains
 
     if (hist_wrtch4diag) then
        this%layer_sat_lag_col(begc:endc,1:nlevgrnd) = spval
-       call hist_addfld2d (fname='LAYER_SAT_LAG', units='1', type2d='levgrnd',  &
+       call hist_addfld2d (fname='LAYER_SAT_LAG', units='unitless', type2d='levgrnd',  &
             avgflag='A', long_name='lagged saturation status of layer in unsat. zone', &
             ptr_col=this%layer_sat_lag_col)
     end if
 
     if (hist_wrtch4diag) then
        this%annavg_finrw_col(begc:endc) = spval
-       call hist_addfld1d (fname='ANNAVG_FINRW', units='1',  &
+       call hist_addfld1d (fname='ANNAVG_FINRW', units='unitless',  &
             avgflag='A', long_name='annual average respiration-weighted FINUNDATED', &
             ptr_col=this%annavg_finrw_col)
     end if
 
     if (hist_wrtch4diag) then
        this%sif_col(begc:endc) = spval
-       call hist_addfld1d (fname='SIF', units='1',  &
+       call hist_addfld1d (fname='SIF', units='unitless',  &
             avgflag='A', long_name='seasonal inundation factor calculated for sat. CH4 prod. (non-lake)', &
             ptr_col=this%sif_col)
     end if
@@ -676,9 +677,9 @@ contains
     !
     ! !USES:
     use shr_kind_mod    , only : r8 => shr_kind_r8
-    use elm_varpar      , only : nlevsoi, nlevgrnd, nlevdecomp
+    use clm_varpar      , only : nlevsoi, nlevgrnd, nlevdecomp
     use landunit_varcon , only : istsoil, istdlak, istcrop
-    use elm_varctl      , only : iulog, fsurdat
+    use clm_varctl      , only : iulog, fsurdat
     use CH4varcon       , only : allowlakeprod, usephfact, fin_use_fsat
     use spmdMod         , only : masterproc
     use fileutils       , only : getfil
@@ -1281,10 +1282,10 @@ contains
     !
     ! !USES:
     use subgridAveMod      , only : p2c, c2g
-    use elm_varpar         , only : nlevgrnd, nlevdecomp
+    use clm_varpar         , only : nlevgrnd, nlevdecomp
     use pftvarcon          , only : noveg
     use CH4varcon          , only : replenishlakec, allowlakeprod, ch4offline, fin_use_fsat
-    use elm_varcon         , only : secspday
+    use clm_varcon         , only : secspday
     !
     ! !ARGUMENTS:
     type(bounds_type)        , intent(in)    :: bounds   
@@ -1899,8 +1900,8 @@ contains
     !
     ! !USES:
     use CH4varcon          , only: usephfact, anoxicmicrosites, ch4rmcnlim
-    use elm_varctl         , only: anoxia
-    use elm_varpar         , only: nlevdecomp, nlevdecomp_full
+    use clm_varctl         , only: anoxia
+    use clm_varpar         , only: nlevdecomp, nlevdecomp_full
     use SharedParamsMod  , only: nlev_soildecomp_standard
     use pftvarcon          , only: noveg
     !
@@ -2196,9 +2197,11 @@ contains
             end if
 
             ! Add oxygen demand for nitrification
-            if (.not. lake .and. j<= nlevdecomp_full ) then
-               o2_decomp_depth(c,j) = o2_decomp_depth(c,j) + pot_f_nit_vr(c,j) * 2.0_r8/14.0_r8
-               ! g N/m^3/s           mol O2 / g N
+            if (use_nitrif_denitrif) then
+               if (.not. lake .and. j<= nlevdecomp_full ) then
+                  o2_decomp_depth(c,j) = o2_decomp_depth(c,j) + pot_f_nit_vr(c,j) * 2.0_r8/14.0_r8
+                  ! g N/m^3/s           mol O2 / g N
+               end if
             end if
 
             if (j  >  jwt(c)) then ! Below the water table so anaerobic CH4 production can occur
@@ -2390,7 +2393,7 @@ contains
     ! By default upland veg. has small 5% porosity but this can be switched to be equal to inundated porosity.
 
     ! !USES:
-    use elm_varcon       , only : rpi
+    use clm_varcon       , only : rpi
     use clm_time_manager , only : get_step_size
     use pftvarcon        , only : nc3_arctic_grass, crop, nc3_nonarctic_grass, nc4_grass, noveg
     use CH4varcon        , only : transpirationloss, usefrootc, use_aereoxid_prog
@@ -3650,7 +3653,7 @@ contains
     !
     ! !USES:
     use clm_time_manager, only: get_step_size, get_days_per_year, get_nstep
-    use elm_varcon      , only: secspday
+    use clm_varcon      , only: secspday
     !
     ! !ARGUMENTS:
     type(bounds_type)      , intent(in)    :: bounds  

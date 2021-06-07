@@ -5,9 +5,9 @@ module VegetationPropertiesType
   use shr_log_mod    , only : errMsg => shr_log_errMsg
   use shr_infnan_mod , only : nan => shr_infnan_nan, assignment(=)
   use abortutils     , only : endrun
-  use elm_varpar     , only : nlevdecomp
-  use elm_varpar     , only : nsoilorder
-  use elm_varctl     , only : nu_com
+  use clm_varpar     , only : nlevdecomp
+  use clm_varpar     , only : nsoilorder
+  use clm_varctl     , only : nu_com
   !
   implicit none
   save
@@ -38,10 +38,6 @@ module VegetationPropertiesType
      real(r8), allocatable :: rootprof_beta (:)   ! rooting distribution parameter for C and N inputs [unitless]
      real(r8), allocatable :: dwood         (:)   ! wood density (gC/m3)
      real(r8), allocatable :: slatop        (:)   ! specific leaf area at top of canopy, projected area basis [m^2/gC]
-! for plant hydraulics
-     real(r8), allocatable :: root_radius   (:)   ! root radius (m)
-     real(r8), allocatable :: root_density  (:)   ! root density (gC/m3)
-!
      real(r8), allocatable :: dsladlai      (:)   ! dSLA/dLAI, projected area basis [m^2/gC]
      real(r8), allocatable :: leafcn        (:)   ! leaf C:N (gC/gN)
      real(r8), allocatable :: flnr          (:)   ! fraction of leaf N in the Rubisco enzyme (gN Rubisco / gN leaf)
@@ -96,13 +92,13 @@ module VegetationPropertiesType
      real(r8), allocatable :: graincp       (:)   ! grain C:P (gC/gP) for prognostic crop model
      
      ! pft dependent parameters for phosphorus for nutrient competition
-     real(r8), pointer :: vmax_plant_nh4(:)        ! vmax for plant nh4 uptake
-     real(r8), pointer :: vmax_plant_no3(:)        ! vmax for plant no3 uptake
-     real(r8), pointer :: vmax_plant_p(:)          ! vmax for plant p uptake
+     real(r8), allocatable :: vmax_plant_nh4(:)        ! vmax for plant nh4 uptake
+     real(r8), allocatable :: vmax_plant_no3(:)        ! vmax for plant no3 uptake
+     real(r8), allocatable :: vmax_plant_p(:)          ! vmax for plant p uptake
      real(r8), allocatable :: vmax_minsurf_p_vr(:,:)   ! vmax for p adsorption
-     real(r8), pointer :: km_plant_nh4(:)          ! km for plant nh4 uptake
-     real(r8), pointer :: km_plant_no3(:)          ! km for plant no3 uptake
-     real(r8), pointer :: km_plant_p(:)            ! km for plant p uptake
+     real(r8), allocatable :: km_plant_nh4(:)          ! km for plant nh4 uptake
+     real(r8), allocatable :: km_plant_no3(:)          ! km for plant no3 uptake
+     real(r8), allocatable :: km_plant_p(:)            ! km for plant p uptake
      real(r8), allocatable :: km_minsurf_p_vr(:,:)     ! km for p adsorption
      real(r8)              :: km_decomp_nh4            ! km for microbial decomposer nh4 uptake
      real(r8)              :: km_decomp_no3            ! km for microbial decomposer no3 uptake
@@ -118,6 +114,9 @@ module VegetationPropertiesType
      real(r8), allocatable :: i_vc(:)                  ! intercept of photosynthesis vcmax ~ leaf n content regression model
      real(r8), allocatable :: s_vc(:)                  ! slope of photosynthesis vcmax ~ leaf n content regression model
 
+     real(r8), allocatable :: nsc_rtime(:)             ! non-structural carbon residence time 
+     real(r8), allocatable :: pinit_beta1(:)           ! shaping parameter for P initialization
+     real(r8), allocatable :: pinit_beta2(:)           ! shaping parameter for P initialization
      real(r8), allocatable :: alpha_nfix(:)            ! fraction of fixed N goes directly to plant
      real(r8), allocatable :: alpha_ptase(:)           ! fraction of phosphatase produced P goes directly to plant
      real(r8), allocatable :: ccost_nfix(:)            ! plant C cost per unit N produced by N2 fixation
@@ -158,7 +157,7 @@ contains
   subroutine veg_vp_init(this)
     !
     ! !USES:
-    use elm_varpar, only : numrad, numpft 
+    use clm_varpar, only : numrad, numpft 
     use pftvarcon , only : ntree, smpso, smpsc, fnitr
     use pftvarcon , only : z0mr, displar, dleaf, rhol, rhos, taul, taus, xl
     use pftvarcon , only : c3psn, slatop, dsladlai, leafcn, flnr, woody
@@ -175,7 +174,7 @@ contains
     use pftvarcon , only : vmax_nfix, km_nfix
     use pftvarcon , only : alpha_nfix, alpha_ptase,ccost_nfix,ccost_ptase
     use pftvarcon , only : vmax_ptase, km_ptase, lamda_ptase
-    use pftvarcon , only : i_vc, s_vc
+    use pftvarcon , only : i_vc, s_vc, nsc_rtime, pinit_beta1, pinit_beta2
     use pftvarcon , only : leafcn_obs, frootcn_obs, livewdcn_obs, deadwdcn_obs
     use pftvarcon , only : leafcp_obs, frootcp_obs, livewdcp_obs, deadwdcp_obs
     use pftvarcon , only : fnr, act25, kcha, koha, cpha, vcmaxha, jmaxha, tpuha
@@ -233,8 +232,6 @@ contains
     allocate(this%stress_decid  (0:numpft))        ; this%stress_decid (:)   =nan
     allocate(this%season_decid  (0:numpft))        ; this%season_decid (:)   =nan
     allocate(this%dwood         (0:numpft))        ; this%dwood        (:)   =nan
-    allocate(this%root_radius   (0:numpft))        ; this%root_radius  (:)   =nan
-    allocate(this%root_density  (0:numpft))        ; this%root_density (:)   =nan
     allocate(this%rootprof_beta (0:numpft))        ; this%rootprof_beta(:)   =nan
     allocate(this%fertnitro     (0:numpft))        ; this%fertnitro    (:)   =nan
     allocate(this%fleafcn       (0:numpft))        ; this%fleafcn      (:)   =nan
@@ -268,6 +265,9 @@ contains
     allocate( this%vmax_ptase(0:numpft))                         ; this%vmax_ptase(:)            =nan
     allocate( this%i_vc(0:numpft))                               ; this%i_vc(:)                  =nan
     allocate( this%s_vc(0:numpft))                               ; this%s_vc(:)                  =nan
+    allocate( this%nsc_rtime(0:numpft))                          ; this%nsc_rtime(:)             =nan
+    allocate( this%pinit_beta1(0:nsoilorder))                    ; this%pinit_beta1(:)           =nan
+    allocate( this%pinit_beta2(0:nsoilorder))                    ; this%pinit_beta2(:)           =nan
     allocate( this%vmax_nfix(0:numpft))                          ; this%vmax_nfix(:)             =nan
     allocate( this%km_nfix(0:numpft))                            ; this%km_nfix(:)               =nan
     allocate( this%fnr(0:numpft))                                ; this%fnr(:)                   =nan
@@ -341,8 +341,6 @@ contains
        this%stress_decid(m) = stress_decid(m)
        this%season_decid(m) = season_decid(m)
        this%dwood(m)        = dwood
-       this%root_radius(m)  = 0.29e-03_r8 !(m)
-       this%root_density(m) = 0.31e06_r8 !(g biomass / m3 root)
        this%fertnitro(m)    = fertnitro(m)
        this%fleafcn(m)      = fleafcn(m)
        this%ffrootcn(m)     = ffrootcn(m)
@@ -393,6 +391,7 @@ contains
         this%km_plant_p(m)     = km_plant_p(m)
         this%i_vc(m)           = i_vc(m)
         this%s_vc(m)           = s_vc(m)
+        this%nsc_rtime(m)      = nsc_rtime(m)
         this%vmax_nfix(m)      = vmax_nfix(m)
         this%km_nfix(m)        = km_nfix(m)
         this%vmax_ptase(m)     = vmax_ptase(m)
@@ -414,6 +413,8 @@ contains
     end do
 
     do m = 0, nsoilorder
+       this%pinit_beta1(m) = pinit_beta1(m)
+       this%pinit_beta2(m) = pinit_beta2(m)
        do j = 1 , nlevdecomp
           this%vmax_minsurf_p_vr(m,j) = vmax_minsurf_p_vr(j,m)
           this%km_minsurf_p_vr(m,j) = km_minsurf_p_vr(j,m)
@@ -427,8 +428,9 @@ contains
     this%km_den        = km_den
     this%km_ptase      = km_ptase
     this%lamda_ptase   = lamda_ptase
-    this%tc_stress     = tc_stress
 
+    this%tc_stress     = tc_stress
+     
   end subroutine veg_vp_init
 
 end module VegetationPropertiesType

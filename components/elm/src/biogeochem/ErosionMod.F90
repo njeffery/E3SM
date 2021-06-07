@@ -8,8 +8,8 @@ module ErosionMod
   use shr_log_mod       , only : errMsg => shr_log_errMsg
   use decompMod         , only : bounds_type
   use clm_time_manager  , only : get_step_size
-  use elm_varcon        , only : dzsoi_decomp
-  use elm_varpar        , only : ndecomp_pools, nlevdecomp
+  use clm_varcon        , only : dzsoi_decomp
+  use clm_varpar        , only : ndecomp_pools, nlevdecomp
   use CNCarbonFluxType  , only : carbonflux_type
   use CNCarbonStateType , only : carbonstate_type
   use CNDecompCascadeConType , only : decomp_cascade_con
@@ -44,7 +44,7 @@ contains
     ! Calculate erosion introduced soil C, N, P fluxes 
     !
     ! !USES:
-    use elm_varctl      , only : iulog
+    use clm_varctl      , only : iulog
     use spmdMod         , only : masterproc
     !
     ! !ARGUMENTS:
@@ -409,7 +409,7 @@ contains
                         if (k1<=nlevdecomp) then
                            primp_vr_new = primp_vr(c,k1)
                         else
-                           primp_vr_new = primp_vr(c,nlevdecomp)
+                           primp_vr_new = 0._r8
                         end if
                      else
                         primp_vr_new = primp_vr(c,j)
@@ -462,8 +462,7 @@ contains
                            primp_vr_new = primp_vr(c,k1)*(zsoi_tot-zsoi_top)/dzsoi_decomp(j) + &
                               primp_vr(c,k2)*(1._r8-(zsoi_tot-zsoi_top)/dzsoi_decomp(j))
                         else
-                           primp_vr_new = primp_vr(c,k1)*(zsoi_tot-zsoi_top)/dzsoi_decomp(j) + &
-                              primp_vr(c,nlevdecomp)*(1._r8-(zsoi_tot-zsoi_top)/dzsoi_decomp(j))
+                           primp_vr_new = primp_vr(c,k1)*(zsoi_tot-zsoi_top)/dzsoi_decomp(j)
                         end if
                      else
                         primp_vr_new = primp_vr(c,j)

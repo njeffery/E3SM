@@ -165,7 +165,7 @@ contains
     ! OUTSIDE any loops over clumps in the driver.
     !
     ! !USES:
-    use elm_varctl           , only : use_cn, create_glacier_mec_landunit, use_fates
+    use clm_varctl           , only : use_cn, create_glacier_mec_landunit, use_fates
     use decompMod            , only : bounds_type, get_proc_clumps, get_clump_bounds
     use decompMod            , only : BOUNDS_LEVEL_PROC
     use dynInitColumnsMod    , only : initialize_new_columns
@@ -312,19 +312,18 @@ contains
                veg_ns, &
                phosphorusstate_vars,phosphorusflux_vars, veg_ps)
 
-          ! Transfer root/seed litter C/N/P to decomposer pools
           call CarbonStateUpdateDynPatch(bounds_clump, &
-               filter_inactive_and_active(nc)%num_soilc, filter_inactive_and_active(nc)%soilc)
+               filter_inactive_and_active(nc)%num_soilc, filter_inactive_and_active(nc)%soilc, &
+               grc_cs, grc_cf, col_cs, col_cf)
 
           call NitrogenStateUpdateDynPatch(bounds_clump, &
-               filter_inactive_and_active(nc)%num_soilc, filter_inactive_and_active(nc)%soilc)
+               filter_inactive_and_active(nc)%num_soilc, filter_inactive_and_active(nc)%soilc, &
+               nitrogenflux_vars, nitrogenstate_vars)
 
           call PhosphorusStateUpdateDynPatch(bounds_clump, &
-               filter_inactive_and_active(nc)%num_soilc, filter_inactive_and_active(nc)%soilc)
+               filter_inactive_and_active(nc)%num_soilc, filter_inactive_and_active(nc)%soilc, &
+               phosphorusflux_vars, phosphorusstate_vars)
 
-       end if
-
-       if(use_cn .or. use_fates)then
           call dyn_cnbal_column(bounds_clump, nc, column_state_updater, &
                col_cs, c13_col_cs, c14_col_cs, &
                phosphorusstate_vars, col_ns, col_ps )

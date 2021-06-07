@@ -8,8 +8,8 @@ module PrecisionControlMod
   use shr_kind_mod        , only : r8 => shr_kind_r8
   use shr_log_mod         , only : errMsg => shr_log_errMsg
   use abortutils          , only : endrun
-  use elm_varctl          , only : nu_com
-  use elm_varpar          , only : ndecomp_pools
+  use clm_varctl          , only : nu_com
+  use clm_varpar          , only : ndecomp_pools
   use CNCarbonStateType   , only : carbonstate_type
   use CNNitrogenStateType , only : nitrogenstate_type
   use PhosphorusStateType , only : phosphorusstate_type
@@ -41,8 +41,8 @@ contains
     ! they get too small.
     !
     ! !USES:
-    use elm_varctl , only : iulog, use_c13, use_c14, use_fates
-    use elm_varpar , only : nlevdecomp_full, crop_prog
+    use clm_varctl , only : iulog, use_c13, use_c14, use_nitrif_denitrif, use_fates
+    use clm_varpar , only : nlevdecomp_full, crop_prog
     use pftvarcon  , only : nc3crop
     use tracer_varcon          , only : is_active_betr_bgc    
     use CNDecompCascadeConType , only : decomp_cascade_con
@@ -577,8 +577,8 @@ contains
             endif
 
          end do ! end of pft loop
-      end if ! end of if(.not.use_fates)
-      
+      end if ! end of if(not.use_fates)
+
       if (.not. is_active_betr_bgc) then
 
          ! column loop
@@ -603,8 +603,10 @@ contains
                   if (abs(csv2%decomp_cpools_vr(c,j,k)) < ccrit) then
                      cc = cc + csv2%decomp_cpools_vr(c,j,k)
                      csv2%decomp_cpools_vr(c,j,k) = 0._r8
-                     cn = cn + col_ns%decomp_npools_vr(c,j,k)
-                     col_ns%decomp_npools_vr(c,j,k) = 0._r8
+                     if (.not.use_fates) then
+                        cn = cn + col_ns%decomp_npools_vr(c,j,k)
+                        col_ns%decomp_npools_vr(c,j,k) = 0._r8
+                     endif
                      if ( use_c13 ) then
                         cc13 = cc13 + c13csv2%decomp_cpools_vr(c,j,k)
                         c13csv2%decomp_cpools_vr(c,j,k) = 0._r8
@@ -621,7 +623,9 @@ contains
                ! be getting the N truncation flux anyway.
 
                csv2%ctrunc_vr(c,j) = csv2%ctrunc_vr(c,j) + cc
-               col_ns%ntrunc_vr(c,j) = col_ns%ntrunc_vr(c,j) + cn
+               if (.not.use_fates) then
+                  col_ns%ntrunc_vr(c,j) = col_ns%ntrunc_vr(c,j) + cn
+               endif
                if ( use_c13 ) then
                   c13csv2%ctrunc_vr(c,j) = c13csv2%ctrunc_vr(c,j) + cc13
                endif
@@ -632,28 +636,29 @@ contains
 
          end do   ! end of column loop
 
-         ! remove small negative perturbations for stability purposes, if any should arise.
-         
-         do fc = 1,num_soilc
-            c = filter_soilc(fc)
-            do j = 1,nlevdecomp_full
-               if (abs(col_ns%smin_no3_vr(c,j)) < ncrit/1e4_r8) then
-                  if ( col_ns%smin_no3_vr(c,j)  < 0._r8 ) then
-                     write(iulog, *) '-10^-12 < smin_no3 < 0. resetting to zero.'
-                     write(iulog, *) 'smin_no3_vr_col(c,j), c, j: ', col_ns%smin_no3_vr(c,j), c, j
-                     col_ns%smin_no3_vr(c,j) = 0._r8
-                  endif
-               end if
-               if (abs(col_ns%smin_nh4_vr(c,j)) < ncrit/1e4_r8) then
-                  if ( col_ns%smin_nh4_vr(c,j)  < 0._r8 ) then
-                     write(iulog, *) '-10^-12 < smin_nh4 < 0. resetting to zero.'
-                     write(iulog, *) 'smin_nh4_vr_col(c,j), c, j: ', col_ns%smin_nh4_vr(c,j), c, j
-                     col_ns%smin_nh4_vr(c,j) = 0._r8
-                  endif
-               end if
-            end do
-         end do
+         if (use_nitrif_denitrif) then
+            ! remove small negative perturbations for stability purposes, if any should arise.
 
+            do fc = 1,num_soilc
+               c = filter_soilc(fc)
+               do j = 1,nlevdecomp_full
+                  if (abs(col_ns%smin_no3_vr(c,j)) < ncrit/1e4_r8) then
+                     if ( col_ns%smin_no3_vr(c,j)  < 0._r8 ) then
+                        write(iulog, *) '-10^-12 < smin_no3 < 0. resetting to zero.'
+                        write(iulog, *) 'smin_no3_vr_col(c,j), c, j: ', col_ns%smin_no3_vr(c,j), c, j
+                        col_ns%smin_no3_vr(c,j) = 0._r8
+                     endif
+                  end if
+                  if (abs(col_ns%smin_nh4_vr(c,j)) < ncrit/1e4_r8) then
+                     if ( col_ns%smin_nh4_vr(c,j)  < 0._r8 ) then
+                        write(iulog, *) '-10^-12 < smin_nh4 < 0. resetting to zero.'
+                        write(iulog, *) 'smin_nh4_vr_col(c,j), c, j: ', col_ns%smin_nh4_vr(c,j), c, j
+                        col_ns%smin_nh4_vr(c,j) = 0._r8
+                     endif
+                  end if
+               end do
+            end do
+         endif
 
          if (nu_com .eq. 'ECA') then
             ! decompose P pool adjust according to C pool
@@ -679,12 +684,11 @@ contains
                do j = 1,nlevdecomp_full
                   cn_eca = 0.0_r8
                   do l = 1,ndecomp_pools
-                     if ( csv2%decomp_cpools_vr(c,j,l) > 0.0_r8 ) then ! .and.  col_ns%decomp_npools_vr(c,j,l) > 1.0e-15) then
-                        if(abs(csv2%decomp_cpools_vr(c,j,l) / col_ns%decomp_npools_vr(c,j,l) - initial_cn_ratio(l) ) > 1.0e-3_r8 &
-                             .and. (.not. floating_cn_ratio_decomp_pools(l)) ) then
-                           cn_eca = cn_eca - ( csv2%decomp_cpools_vr(c,j,l) / initial_cn_ratio(l) - col_ns%decomp_npools_vr(c,j,l) )
-                           col_ns%decomp_npools_vr(c,j,l) = csv2%decomp_cpools_vr(c,j,l) / initial_cn_ratio(l)
-                        end if
+                     if ( csv2%decomp_cpools_vr(c,j,l) > 0.0_r8 .and.  &
+                          abs(csv2%decomp_cpools_vr(c,j,l) / col_ns%decomp_npools_vr(c,j,l) - initial_cn_ratio(l) ) > 1.0e-3_r8 &
+                          .and. (.not. floating_cn_ratio_decomp_pools(l)) ) then
+                        cn_eca = cn_eca - ( csv2%decomp_cpools_vr(c,j,l) / initial_cn_ratio(l) - col_ns%decomp_npools_vr(c,j,l) )
+                        col_ns%decomp_npools_vr(c,j,l) = csv2%decomp_cpools_vr(c,j,l) / initial_cn_ratio(l)
                      end if
                   end do
                   col_ns%ntrunc_vr(c,j) = col_ns%ntrunc_vr(c,j) + cn_eca
@@ -727,31 +731,29 @@ contains
                end do
             end do
 
-            if(.not.use_fates) then
-               do fp = 1,num_soilp
-                  p = filter_soilp(fp)
-                  if (veg_ns%retransn(p) < 0._r8) then
-                     write(iulog, *) 'error retransn_patch is negative: ',p
-                     write(iulog, *) 'retransn_patch: ', veg_ns%retransn(p)
-                     call endrun(msg=errMsg(__FILE__, __LINE__))
-                  end if
-                  if (veg_ns%npool(p) < 0._r8) then
-                     write(iulog, *) 'error npool_patch is negative: ',p
-                     write(iulog, *) 'npool_patch: ', veg_ns%npool(p)
-                     call endrun(msg=errMsg(__FILE__, __LINE__))
-                  end if
-                  if (veg_ps%retransp(p) < 0._r8) then
-                     write(iulog, *) 'error retransp_patch is negative: ',p
-                     write(iulog, *) 'retransp_patch: ', veg_ps%retransp(p)
-                     call endrun(msg=errMsg(__FILE__, __LINE__))
-                  end if
-                  if (veg_ps%ppool(p) < 0._r8) then
-                     write(iulog, *) 'error ppool_patch is negative: ',p
-                     write(iulog, *) 'ppool_patch: ', veg_ps%ppool(p)
-                     call endrun(msg=errMsg(__FILE__, __LINE__))
-                  end if
-               end do
-            end if
+            do fp = 1,num_soilp
+               p = filter_soilp(fp)
+               if (veg_ns%retransn(p) < 0._r8) then
+                  write(iulog, *) 'error retransn_patch is negative: ',p
+                  write(iulog, *) 'retransn_patch: ', veg_ns%retransn(p)
+                  call endrun(msg=errMsg(__FILE__, __LINE__))
+               end if
+               if (veg_ns%npool(p) < 0._r8) then
+                  write(iulog, *) 'error npool_patch is negative: ',p
+                  write(iulog, *) 'npool_patch: ', veg_ns%npool(p)
+                  call endrun(msg=errMsg(__FILE__, __LINE__))
+               end if
+               if (veg_ps%retransp(p) < 0._r8) then
+                  write(iulog, *) 'error retransp_patch is negative: ',p
+                  write(iulog, *) 'retransp_patch: ', veg_ps%retransp(p)
+                  call endrun(msg=errMsg(__FILE__, __LINE__))
+               end if
+               if (veg_ps%ppool(p) < 0._r8) then
+                  write(iulog, *) 'error ppool_patch is negative: ',p
+                  write(iulog, *) 'ppool_patch: ', veg_ps%ppool(p)
+                  call endrun(msg=errMsg(__FILE__, __LINE__))
+               end if
+            end do
 
          endif
 

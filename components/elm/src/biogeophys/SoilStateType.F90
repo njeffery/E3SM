@@ -10,16 +10,16 @@ module SoilStateType
   use spmdMod         , only : mpicom, MPI_INTEGER, masterproc
   use ncdio_pio       , only : file_desc_t, ncd_defvar, ncd_io, ncd_double, ncd_int, ncd_inqvdlen
   use ncdio_pio       , only : ncd_pio_openfile, ncd_inqfdims, ncd_pio_closefile, ncd_inqdid, ncd_inqdlen
-  use elm_varpar      , only : more_vertlayers, numpft, numrad 
-  use elm_varpar      , only : nlevsoi, nlevgrnd, nlevlak, nlevsoifl, nlayer, nlayert, nlevurb, nlevsno
+  use clm_varpar      , only : more_vertlayers, numpft, numrad 
+  use clm_varpar      , only : nlevsoi, nlevgrnd, nlevlak, nlevsoifl, nlayer, nlayert, nlevurb, nlevsno
   use landunit_varcon , only : istice, istdlak, istwet, istsoil, istcrop, istice_mec
   use column_varcon   , only : icol_roof, icol_sunwall, icol_shadewall, icol_road_perv, icol_road_imperv 
-  use elm_varcon      , only : zsoi, dzsoi, zisoi, spval
-  use elm_varcon      , only : secspday, pc, mu, denh2o, denice, grlnd
-  use elm_varctl      , only : use_cn, use_lch4,use_dynroot, use_fates
-  use elm_varctl      , only : use_erosion
-  use elm_varctl      , only : use_var_soil_thick
-  use elm_varctl      , only : iulog, fsurdat, hist_wrtch4diag
+  use clm_varcon      , only : zsoi, dzsoi, zisoi, spval
+  use clm_varcon      , only : secspday, pc, mu, denh2o, denice, grlnd
+  use clm_varctl      , only : use_cn, use_lch4,use_dynroot, use_fates
+  use clm_varctl      , only : use_erosion
+  use clm_varctl      , only : use_var_soil_thick
+  use clm_varctl      , only : iulog, fsurdat, hist_wrtch4diag
   use CH4varcon       , only : allowlakeprod
   use LandunitType    , only : lun_pp                
   use ColumnType      , only : col_pp                
@@ -81,9 +81,6 @@ module SoilStateType
      real(r8), pointer :: rootr_road_perv_col  (:,:) ! col effective fraction of roots in each soil layer of urban pervious road
      real(r8), pointer :: rootfr_road_perv_col (:,:) ! col effective fraction of roots in each soil layer of urban pervious road
      real(r8), pointer :: root_depth_patch     (:)   ! rooting depth of each PFT (m)
-     real(r8), pointer :: k_soil_root_patch    (:,:) ! patch soil-root interface conductance [mm/s]
-     real(r8), pointer :: root_conductance_patch(:,:) ! patch root conductance [mm/s]
-     real(r8), pointer :: soil_conductance_patch(:,:) ! patch soil conductance [mm/s]
 
    contains
 
@@ -179,9 +176,6 @@ contains
     allocate(this%rootfr_col           (begc:endc,1:nlevgrnd))          ; this%rootfr_col           (:,:) = nan 
     allocate(this%rootfr_road_perv_col (begc:endc,1:nlevgrnd))          ; this%rootfr_road_perv_col (:,:) = nan
     allocate(this%root_depth_patch     (begp:endp))                     ; this%root_depth_patch     (:)   = spval
-    allocate(this%k_soil_root_patch    (begp:endp,1:nlevsoi))           ; this%k_soil_root_patch (:,:) = nan
-    allocate(this%root_conductance_patch(begp:endp,1:nlevsoi))          ; this%root_conductance_patch (:,:) = nan
-    allocate(this%soil_conductance_patch(begp:endp,1:nlevsoi))          ; this%soil_conductance_patch (:,:) = nan
 
   end subroutine InitAllocate
 
@@ -223,7 +217,7 @@ contains
 
     if (use_cn) then
        this%bsw_col(begc:endc,:) = spval 
-       call hist_addfld2d (fname='bsw', units='1', type2d='levgrnd', &
+       call hist_addfld2d (fname='bsw', units='unitless', type2d='levgrnd', &
             avgflag='A', long_name='clap and hornberger B', &
             ptr_col=this%bsw_col, default='inactive')
     end if
@@ -276,12 +270,12 @@ contains
          ptr_col=this%hk_l_col, set_spec=spval, l2g_scale_type='veg', default='inactive')
 
     this%soilalpha_col(begc:endc) = spval
-    call hist_addfld1d (fname='SoilAlpha',  units='1',  &
+    call hist_addfld1d (fname='SoilAlpha',  units='unitless',  &
          avgflag='A', long_name='factor limiting ground evap', &
          ptr_col=this%soilalpha_col, set_urb=spval)
 
     this%soilalpha_u_col(begc:endc) = spval
-    call hist_addfld1d (fname='SoilAlpha_U',  units='1',  &
+    call hist_addfld1d (fname='SoilAlpha_U',  units='unitless',  &
          avgflag='A', long_name='urban factor limiting ground evap', &
          ptr_col=this%soilalpha_u_col, set_nourb=spval)
 
@@ -862,8 +856,7 @@ contains
     use abortutils , only : endrun
     use restUtilMod
     use ncdio_pio
-    use elm_varctl,  only : use_dynroot
-    use elm_varctl,  only : use_hydrstress
+    use clm_varctl,  only : use_dynroot
     use RootBiophysMod      , only : init_vegrootfr
     !
     ! !ARGUMENTS:
@@ -876,23 +869,7 @@ contains
     logical          :: readvar   ! determine if variable is on initial file
     logical          :: readrootfr = .false.
     !-----------------------------------------------------------------------
-    if(use_hydrstress) then
-       call restartvar(ncid=ncid, flag=flag, varname='SMP', xtype=ncd_double,  &
-            dim1name='column', dim2name='levgrnd', switchdim=.true., &
-            long_name='soil matric potential', units='mm', &
-            interpinic_flag='interp', readvar=readvar, data=this%smp_l_col)
-       ! Initialize soil matric potential to 2.5 m below ground surface to avoid
-       ! NaN. It will be updated when soil hydrology is activated.
-       if(flag=='read' .and. .not.readvar) this%smp_l_col = -2.5e3_r8
 
-       call restartvar(ncid=ncid, flag=flag, varname='HK', xtype=ncd_double,  &
-            dim1name='column', dim2name='levgrnd', switchdim=.true., &
-            long_name='hydraulic conductivity', units='mm/s', &
-            interpinic_flag='interp', readvar=readvar, data=this%hk_l_col)
-       ! Initialize hydraulic conductivity to avoid NaN.
-       ! It will be replaced with the correct value when soil hydrology is activated.
-       if(flag=='read' .and. .not.readvar) this%hk_l_col = 1.e-9_r8
-    endif
     if(use_dynroot) then
        call restartvar(ncid=ncid, flag=flag, varname='root_depth', xtype=ncd_double,  &
             dim1name='pft', &

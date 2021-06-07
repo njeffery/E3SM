@@ -11,8 +11,8 @@ module SnowSnicarMod
   use shr_kind_mod    , only : r8 => shr_kind_r8
   use shr_sys_mod     , only : shr_sys_flush
   use shr_log_mod     , only : errMsg => shr_log_errMsg
-  use elm_varctl      , only : iulog, use_extrasnowlayers
-  use elm_varcon      , only : namec 
+  use clm_varctl      , only : iulog
+  use clm_varcon      , only : namec 
   use shr_const_mod   , only : SHR_CONST_RHOICE
   use abortutils      , only : endrun
   use decompMod       , only : bounds_type
@@ -219,12 +219,12 @@ contains
     ! J. Geophys. Res., 112, D11202, doi: 10.1029/2006JD008003
     !
     ! !USES:
-    use elm_varpar       , only : nlevsno, numrad
+    use clm_varpar       , only : nlevsno, numrad
     use clm_time_manager , only : get_nstep
     use shr_const_mod    , only : SHR_CONST_PI
     !
     ! !ARGUMENTS:
-    integer           , intent(in)  :: flg_snw_ice                                        ! flag: =1 when called from ELM, =2 when called from CSIM
+    integer           , intent(in)  :: flg_snw_ice                                        ! flag: =1 when called from CLM, =2 when called from CSIM
     type (bounds_type), intent(in)  :: bounds                                    
     integer           , intent(in)  :: num_nourbanc                                       ! number of columns in non-urban filter
     integer           , intent(in)  :: filter_nourbanc(:)                                 ! column filter for non-urban points
@@ -291,7 +291,7 @@ contains
     real(r8):: L_aer(-nlevsno+1:0,sno_nbr_aer)    ! aerosol mass in snow layer (lyr,nbr_aer) [kg/m2] 
     real(r8):: tau_aer(-nlevsno+1:0,sno_nbr_aer)  ! aerosol optical depth (lyr,nbr_aer) [unitless]
     real(r8):: tau_sum                            ! cumulative (snow+aerosol) optical depth [unitless]
-    real(r8):: tau_elm(-nlevsno+1:0)              ! column optical depth from layer bottom to snowpack top (lyr) [unitless]
+    real(r8):: tau_clm(-nlevsno+1:0)              ! column optical depth from layer bottom to snowpack top (lyr) [unitless] 
     real(r8):: omega_sum                          ! temporary summation of single-scatter albedo of all aerosols [frc]
     real(r8):: g_sum                              ! temporary summation of asymmetry parameter of all aerosols [frc]
 
@@ -316,7 +316,6 @@ contains
     integer :: j                                  ! aerosol number index [idx]
     integer :: n                                  ! tridiagonal matrix index [idx]
     integer :: m                                  ! secondary layer index [idx]
-    integer :: nint_snw_rds_min                   ! nearest integer value of snw_rds_min
    
     real(r8):: F_direct(-nlevsno+1:0)             ! direct-beam radiation at bottom of layer interface (lyr) [W/m^2]
     real(r8):: F_net(-nlevsno+1:0)                ! net radiative flux at bottom of layer interface (lyr) [W/m^2]
@@ -389,7 +388,6 @@ contains
 
       ! Define constants
       pi = SHR_CONST_PI
-      nint_snw_rds_min = nint(snw_rds_min)
 
       ! always use Delta approximation for snow
       DELTA = 1
@@ -423,7 +421,7 @@ contains
          !     Otherwise, set snow albedo to zero
          if ((coszen(c_idx) > 0._r8) .and. (h2osno_lcl > min_snw)) then     
 
-            ! Set variables specific to ELM
+            ! Set variables specific to CLM
             if (flg_snw_ice == 1) then
                ! If there is snow, but zero snow layers, we must create a layer locally.
                ! This layer is presumed to have the fresh snow effective radius.
@@ -432,7 +430,7 @@ contains
                   snl_lcl           =  -1
                   h2osno_ice_lcl(0) =  h2osno_lcl
                   h2osno_liq_lcl(0) =  0._r8
-                  snw_rds_lcl(0)    =  nint_snw_rds_min
+                  snw_rds_lcl(0)    =  nint(snw_rds_min)
                else
                   flg_nosnl         =  0
                   snl_lcl           =  snl(c_idx)
@@ -499,7 +497,7 @@ contains
                   write (iulog,*) "column: ", c_idx, " level: ", i, " snl(c)= ", snl_lcl
                   write (iulog,*) "lat= ", lat_coord, " lon= ", lon_coord
                   write (iulog,*) "h2osno(c)= ", h2osno_lcl
-                  call endrun(decomp_index=c_idx, elmlevel=namec, msg=errmsg(__FILE__, __LINE__))
+                  call endrun(decomp_index=c_idx, clmlevel=namec, msg=errmsg(__FILE__, __LINE__))
                endif
             enddo
 
@@ -801,15 +799,15 @@ contains
                   endif
 
                   ! Total column optical depth:
-                  ! tau_elm(i) = total optical depth above the bottom of layer i
-                  tau_elm(snl_top) = 0._r8
+                  ! tau_clm(i) = total optical depth above the bottom of layer i
+                  tau_clm(snl_top) = 0._r8
                   do i=snl_top+1,snl_btm,1
-                     tau_elm(i) = tau_elm(i-1)+tau_star(i-1)
+                     tau_clm(i) = tau_clm(i-1)+tau_star(i-1)
                   enddo
 
                   ! Direct radiation at bottom of snowpack:
                   F_direct_btm = albsfc_lcl(bnd_idx)*mu_not * &
-                       exp(-(tau_elm(snl_btm)+tau_star(snl_btm))/mu_not)*pi*flx_slrd_lcl(bnd_idx)
+                       exp(-(tau_clm(snl_btm)+tau_star(snl_btm))/mu_not)*pi*flx_slrd_lcl(bnd_idx)
 
                   ! Intermediates
                   ! Gamma values are approximation-specific.
@@ -862,21 +860,21 @@ contains
                      if (flg_slr_in == 1) then
 
                         C_pls_btm(i) = (omega_star(i)*pi*flx_slrd_lcl(bnd_idx)* &
-                             exp(-(tau_elm(i)+tau_star(i))/mu_not)*   &
+                             exp(-(tau_clm(i)+tau_star(i))/mu_not)*   &
                              (((gamma1(i)-(1/mu_not))*gamma3(i))+     &
                              (gamma4(i)*gamma2(i))))/((lambda(i)**2)-(1/(mu_not**2)))
 
                         C_mns_btm(i) = (omega_star(i)*pi*flx_slrd_lcl(bnd_idx)* &
-                             exp(-(tau_elm(i)+tau_star(i))/mu_not)*   &
+                             exp(-(tau_clm(i)+tau_star(i))/mu_not)*   &
                              (((gamma1(i)+(1/mu_not))*gamma4(i))+     &
                              (gamma2(i)*gamma3(i))))/((lambda(i)**2)-(1/(mu_not**2)))
 
                         C_pls_top(i) = (omega_star(i)*pi*flx_slrd_lcl(bnd_idx)* &
-                             exp(-tau_elm(i)/mu_not)*(((gamma1(i)-(1/mu_not))* &
+                             exp(-tau_clm(i)/mu_not)*(((gamma1(i)-(1/mu_not))* &
                              gamma3(i))+(gamma4(i)*gamma2(i))))/((lambda(i)**2)-(1/(mu_not**2)))
 
                         C_mns_top(i) = (omega_star(i)*pi*flx_slrd_lcl(bnd_idx)* &
-                             exp(-tau_elm(i)/mu_not)*(((gamma1(i)+(1/mu_not))* &
+                             exp(-tau_clm(i)/mu_not)*(((gamma1(i)+(1/mu_not))* &
                              gamma4(i))+(gamma2(i)*gamma3(i))))/((lambda(i)**2)-(1/(mu_not**2)))
 
                      else
@@ -935,7 +933,7 @@ contains
 
                   ! Downward direct-beam and net flux (F_net) at the base of each layer:
                   do i=snl_top,snl_btm,1
-                     F_direct(i) = mu_not*pi*flx_slrd_lcl(bnd_idx)*exp(-(tau_elm(i)+tau_star(i))/mu_not)
+                     F_direct(i) = mu_not*pi*flx_slrd_lcl(bnd_idx)*exp(-(tau_clm(i)+tau_star(i))/mu_not)
                      F_net(i)    = (Y(2*i-1)*(e1(i)-e3(i))) + (Y(2*i)*(e2(i)-e4(i))) + &
                           C_pls_btm(i) - C_mns_btm(i) - F_direct(i)
                   enddo
@@ -1036,7 +1034,7 @@ contains
                      write(iulog,*) "column index: ", c_idx
                      write(iulog,*) "landunit type", lun_pp%itype(l_idx)
                      write(iulog,*) "frac_sno: ", frac_sno(c_idx)
-                     call endrun(decomp_index=c_idx, elmlevel=namec, msg=errmsg(__FILE__, __LINE__))
+                     call endrun(decomp_index=c_idx, clmlevel=namec, msg=errmsg(__FILE__, __LINE__))
                   else
                      flg_dover = 0
                   endif
@@ -1049,7 +1047,7 @@ contains
                if (abs(energy_sum) > 0.00001_r8) then
                   write (iulog,"(a,e13.6,a,i6,a,i6)") "SNICAR ERROR: Energy conservation error of : ", energy_sum, &
                        " at timestep: ", nstep, " at column: ", c_idx
-                  call endrun(decomp_index=c_idx, elmlevel=namec, msg=errmsg(__FILE__, __LINE__))
+                  call endrun(decomp_index=c_idx, clmlevel=namec, msg=errmsg(__FILE__, __LINE__))
                endif
 
                albout_lcl(bnd_idx) = albedo
@@ -1083,7 +1081,7 @@ contains
                   write (iulog,*) "SNICAR STATS: snw_rds(-1)= ", snw_rds(c_idx,-1)
                   write (iulog,*) "SNICAR STATS: snw_rds(0)= ", snw_rds(c_idx,0)
 
-                  call endrun(decomp_index=c_idx, elmlevel=namec, msg=errmsg(__FILE__, __LINE__))
+                  call endrun(decomp_index=c_idx, clmlevel=namec, msg=errmsg(__FILE__, __LINE__))
                endif
 
             enddo   ! loop over wvl bands
@@ -1164,8 +1162,8 @@ contains
     !
     ! !USES:
     use clm_time_manager , only : get_step_size, get_nstep
-    use elm_varpar       , only : nlevsno
-    use elm_varcon       , only : spval
+    use clm_varpar       , only : nlevsno
+    use clm_varcon       , only : spval
     use shr_const_mod    , only : SHR_CONST_RHOICE, SHR_CONST_PI
     !
     ! !ARGUMENTS:
@@ -1355,7 +1353,7 @@ contains
             !               RE-FREEZING
             !
             ! new snowfall [kg/m2]
-            if (do_capsnow(c_idx) .and. .not. use_extrasnowlayers) then
+            if (do_capsnow(c_idx)) then
                newsnow = max(0._r8, (qflx_snwcp_ice(c_idx)*dtime))
             else
                newsnow = max(0._r8, (qflx_snow_grnd_col(c_idx)*dtime))
@@ -1424,7 +1422,7 @@ contains
    subroutine SnowOptics_init( )
      
      use fileutils  , only : getfil
-     use elm_varctl , only : fsnowoptics
+     use CLM_varctl , only : fsnowoptics
      use spmdMod    , only : masterproc
      use ncdio_pio  , only : file_desc_t, ncd_io, ncd_pio_openfile, ncd_pio_closefile
      use ncdio_pio  , only : ncd_pio_openfile, ncd_inqfdims, ncd_pio_closefile, ncd_inqdid, ncd_inqdlen
@@ -1585,7 +1583,7 @@ contains
 
    !-----------------------------------------------------------------------
    subroutine SnowAge_init( )
-     use elm_varctl      , only : fsnowaging
+     use CLM_varctl      , only : fsnowaging
      use fileutils       , only : getfil
      use spmdMod         , only : masterproc
      use ncdio_pio       , only : file_desc_t, ncd_io, ncd_pio_openfile, ncd_pio_closefile
@@ -1653,12 +1651,12 @@ contains
      ! The inputs and outputs are the same to subroutine SNICAR_RT
      !
      ! !USES:
-     use elm_varpar       , only : nlevsno, numrad
+     use clm_varpar       , only : nlevsno, numrad
      use clm_time_manager , only : get_nstep
      use shr_const_mod    , only : SHR_CONST_PI
      !
      ! !ARGUMENTS:
-     integer           , intent(in)  :: flg_snw_ice                                        ! flag: =1 when called from ELM, =2 when called from CSIM
+     integer           , intent(in)  :: flg_snw_ice                                        ! flag: =1 when called from CLM, =2 when called from CSIM
      type (bounds_type), intent(in)  :: bounds
      integer           , intent(in)  :: num_nourbanc                                       ! number of columns in non-urban filter
      integer           , intent(in)  :: filter_nourbanc(:)                                 ! column filter for non-urban points
@@ -1722,7 +1720,7 @@ contains
      real(r8):: L_aer(-nlevsno+1:0,sno_nbr_aer)    ! aerosol mass in snow layer (lyr,nbr_aer) [kg/m2]
      real(r8):: tau_aer(-nlevsno+1:0,sno_nbr_aer)  ! aerosol optical depth (lyr,nbr_aer) [unitless]
      real(r8):: tau_sum                            ! cumulative (snow+aerosol) optical depth [unitless]
-     real(r8):: tau_elm(-nlevsno+1:0)              ! column optical depth from layer bottom to snowpack top (lyr) [unitless]
+     real(r8):: tau_clm(-nlevsno+1:0)              ! column optical depth from layer bottom to snowpack top (lyr) [unitless]
      real(r8):: omega_sum                          ! temporary summation of single-scatter albedo of all aerosols [frc]
      real(r8):: g_sum                              ! temporary summation of asymmetry parameter of all aerosols [frc]
 
@@ -1746,7 +1744,6 @@ contains
      integer :: i                                  ! layer index [idx]
      integer :: j                                  ! aerosol number index [idx]
      integer :: m                                  ! secondary layer index [idx]
-     integer :: nint_snw_rds_min                   ! nearest integer value of snw_rds_min
 
      real(r8):: F_abs(-nlevsno+1:0)                ! net absorbed radiative energy (lyr) [W/m^2]
      real(r8):: F_abs_sum                          ! total absorbed energy in column [W/m^2]
@@ -1917,14 +1914,14 @@ contains
      SHR_ASSERT_ALL((ubound(flx_abs)        == (/bounds%endc, 1, numrad/)),      errMsg(__FILE__, __LINE__))
 
      associate(&
-          snl         =>   col_pp%snl           , & ! Input:  [integer (:)]  negative number of snow layers (col) [nbr]
-          h2osno      =>   col_ws%h2osno        , & ! Input:  [real(r8) (:)]  snow liquid water equivalent (col) [kg/m2]
-          frac_sno    =>   col_ws%frac_sno_eff    & ! Input:  [real(r8) (:)]  fraction of ground covered by snow (0 to 1)
+          snl         =>   col_pp%snl                           , & ! Input:  [integer (:)]  negative number of snow layers (col) [nbr]
+
+          h2osno      =>   waterstate_vars%h2osno_col        , & ! Input:  [real(r8) (:)]  snow liquid water equivalent (col) [kg/m2]
+          frac_sno    =>   waterstate_vars%frac_sno_eff_col    & ! Input:  [real(r8) (:)]  fraction of ground covered by snow (0 to 1)
           )
 
        ! Define constants
        pi = SHR_CONST_PI
-       nint_snw_rds_min = nint(snw_rds_min)
 
        ! always use Delta approximation for snow
        DELTA = 1
@@ -1970,7 +1967,7 @@ contains
           !     Otherwise, set snow albedo to zero
           if ((coszen(c_idx) > 0._r8) .and. (h2osno_lcl > min_snw)) then
 
-             ! Set variables specific to ELM
+             ! Set variables specific to CLM
              if (flg_snw_ice == 1) then
                 ! If there is snow, but zero snow layers, we must create a layer locally.
                 ! This layer is presumed to have the fresh snow effective radius.
@@ -1979,7 +1976,7 @@ contains
                    snl_lcl           =  -1
                    h2osno_ice_lcl(0) =  h2osno_lcl
                    h2osno_liq_lcl(0) =  0._r8
-                   snw_rds_lcl(0)    =  nint_snw_rds_min
+                   snw_rds_lcl(0)    =  nint(snw_rds_min)
                 else
                    flg_nosnl         =  0
                    snl_lcl           =  snl(c_idx)
@@ -2046,7 +2043,7 @@ contains
                    write (iulog,*) "column: ", c_idx, " level: ", i, " snl(c)= ", snl_lcl
                    write (iulog,*) "lat= ", lat_coord, " lon= ", lon_coord
                    write (iulog,*) "h2osno(c)= ", h2osno_lcl
-                   call endrun(decomp_index=c_idx, elmlevel=namec, msg=errmsg(__FILE__, __LINE__))
+                   call endrun(decomp_index=c_idx, clmlevel=namec, msg=errmsg(__FILE__, __LINE__))
                 endif
              enddo
 
@@ -2551,14 +2548,14 @@ contains
                       write(iulog,*) "SNICAR_AD STATS: dust2(0)= ", mss_cnc_aer_lcl(0,4)
                       write(iulog,*) "SNICAR_AD STATS: dust3(0)= ", mss_cnc_aer_lcl(0,5)
                       write(iulog,*) "SNICAR_AD STATS: dust4(0)= ", mss_cnc_aer_lcl(0,6)
-                      call endrun(decomp_index=c_idx, elmlevel=namec, msg=errmsg(__FILE__, __LINE__))
+                      call endrun(decomp_index=c_idx, clmlevel=namec, msg=errmsg(__FILE__, __LINE__))
                     endif
                   enddo
 
                   ! absobed flux by the underlying ground
                   F_btm_net = dftmp(snl_btm_itf)
 
-                  ! note here, snl_btm_itf = 1 by snow column set up in ELM
+                  ! note here, snl_btm_itf = 1 by snow column set up in CLM
                   flx_abs_lcl(1,bnd_idx) = F_btm_net
 
                  if (flg_nosnl == 1) then
@@ -2602,7 +2599,7 @@ contains
                    write(iulog,*) "bnd_idx", bnd_idx
                    write(iulog,*) "F_abs", F_abs
                    write(iulog,*) "albedo", albedo
-                   call endrun(decomp_index=c_idx, elmlevel=namec, msg=errmsg(__FILE__, __LINE__))
+                   call endrun(decomp_index=c_idx, clmlevel=namec, msg=errmsg(__FILE__, __LINE__))
                 endif
 
                 albout_lcl(bnd_idx) = albedo
@@ -2634,7 +2631,7 @@ contains
                    write (iulog,*) "SNICAR STATS: snw_rds(-1)= ", snw_rds(c_idx,-1)
                    write (iulog,*) "SNICAR STATS: snw_rds(0)= ", snw_rds(c_idx,0)
 
-                   call endrun(decomp_index=c_idx, elmlevel=namec, msg=errmsg(__FILE__, __LINE__))
+                   call endrun(decomp_index=c_idx, clmlevel=namec, msg=errmsg(__FILE__, __LINE__))
                 endif
 
              enddo   ! loop over wvl bands

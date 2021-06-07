@@ -17,9 +17,9 @@ module dynSubgridAdjustmentsMod
   use shr_log_mod            , only : errMsg => shr_log_errMsg
   use shr_infnan_mod         , only : nan => shr_infnan_nan, assignment(=)
   use decompMod              , only : bounds_type
-  use elm_varpar             , only : ndecomp_pools, nlevdecomp
-  use elm_varctl             , only : use_crop
-  use elm_varcon             , only : dzsoi_decomp
+  use clm_varpar             , only : ndecomp_pools, nlevdecomp
+  use clm_varctl             , only : use_crop
+  use clm_varcon             , only : dzsoi_decomp
   use dynPatchStateUpdaterMod, only : patch_state_updater_type
   use dynColumnStateUpdaterMod, only : column_state_updater_type
   use ColumnDataType         , only : column_carbon_state, column_nitrogen_state
@@ -230,7 +230,6 @@ contains
          bounds                                                        , &
          num_filterp_with_inactive                                     , &
          filterp_with_inactive                                         , &
-         flux1_out_dest = 'flux_out_col_area'                          , &
          flux1_fraction_by_pft_type = pprod10                          , &
          var                        = deadstemc_patch_temp    (begp:endp) , &
          flux1_out                  = prod10_cflux            (begp:endp) , &
@@ -244,7 +243,6 @@ contains
          bounds                                                        , &
          num_filterp_with_inactive                                     , &
          filterp_with_inactive                                         , &
-         flux1_out_dest = 'flux_out_col_area'                          , &
          flux1_fraction_by_pft_type = pprod100                         , &
          var                        = deadstemc_patch_temp    (begp:endp) , &
          flux1_out                  = prod100_cflux            (begp:endp) , &
@@ -257,7 +255,6 @@ contains
          bounds                                                        , &
          num_filterp_with_inactive                                     , &
          filterp_with_inactive                                         , &
-         flux1_out_dest = 'flux_out_grc_area'                          , &
          flux1_fraction_by_pft_type = pconv                          , &
          var                        = veg_cs%deadstemc(begp:endp) , &
          flux1_out                  = conv_cflux              (begp:endp) , &
@@ -398,27 +395,6 @@ contains
          var               = veg_cs%totpftc(begp:endp))
 
     if (use_crop) then
-       call patch_state_updater%update_patch_state(         &
-            bounds                                        , &
-            num_filterp_with_inactive                     , &
-            filterp_with_inactive                         , &            
-            var = veg_cs%grainc(begp:endp)                , &
-            flux_out_col_area = crop_product_cflux(begp:endp))
-
-       call patch_state_updater%update_patch_state(         &
-            bounds                                        , &
-            num_filterp_with_inactive                     , &
-            filterp_with_inactive                         , &
-            var = veg_cs%grainc_storage(begp:endp)        , &
-            flux_out_grc_area = conv_cflux(begp:endp))
-
-       call patch_state_updater%update_patch_state(         &
-            bounds                                        , &
-            num_filterp_with_inactive                     , &
-            filterp_with_inactive                         , &
-            var = veg_cs%grainc_xfer(begp:endp)           , &
-            flux_out_grc_area = conv_cflux(begp:endp))
-
        ! This is a negative pool. So any deficit that we haven't repaid gets sucked out
        ! of the atmosphere.
        call patch_state_updater%update_patch_state(         &
@@ -494,36 +470,6 @@ contains
             adjustment_one_level(begc:endc) * dzsoi_decomp(j)
 
     end do
-
-    call column_state_updater%update_column_state_no_special_handling( &
-         bounds      = bounds,                                         &
-         clump_index = clump_index,                                    &
-         var         = col_cs%prod1c(begc:endc),     &
-         adjustment  = adjustment_one_level(begc:endc))
-
-    col_cs%dyn_cbal_adjustments(begc:endc) = &
-         col_cs%dyn_cbal_adjustments(begc:endc) + &
-         adjustment_one_level(begc:endc)
-
-    call column_state_updater%update_column_state_no_special_handling( &
-         bounds      = bounds,                                         &
-         clump_index = clump_index,                                    &
-         var         = col_cs%prod10c(begc:endc),     &
-         adjustment  = adjustment_one_level(begc:endc))
-
-    col_cs%dyn_cbal_adjustments(begc:endc) = &
-         col_cs%dyn_cbal_adjustments(begc:endc) + &
-         adjustment_one_level(begc:endc)
-
-    call column_state_updater%update_column_state_no_special_handling( &
-         bounds      = bounds,                                         &
-         clump_index = clump_index,                                    &
-         var         = col_cs%prod100c(begc:endc),     &
-         adjustment  = adjustment_one_level(begc:endc))
-
-    col_cs%dyn_cbal_adjustments(begc:endc) = &
-         col_cs%dyn_cbal_adjustments(begc:endc) + &
-         adjustment_one_level(begc:endc)
 
   end subroutine dyn_col_cs_Adjustments
 
@@ -716,7 +662,6 @@ contains
          bounds                                                           , &
          num_filterp_with_inactive                                        , &
          filterp_with_inactive                                            , &
-         flux1_out_dest = 'flux_out_col_area'                             , &
          flux1_fraction_by_pft_type = pprod10                             , &
          var                        = deadstemn_patch_temp    (begp:endp) , &
          flux1_out                  = prod10_nflux            (begp:endp) , &
@@ -730,7 +675,6 @@ contains
          bounds                                                           , &
          num_filterp_with_inactive                                        , &
          filterp_with_inactive                                            , &
-         flux1_out_dest = 'flux_out_col_area'                             , &
          flux1_fraction_by_pft_type = pprod100                            , &
          var                        = deadstemn_patch_temp    (begp:endp) , &
          flux1_out                  = prod100_nflux           (begp:endp) , &
@@ -743,7 +687,6 @@ contains
          bounds                                                           , &
          num_filterp_with_inactive                                        , &
          filterp_with_inactive                                            , &
-         flux1_out_dest = 'flux_out_grc_area'                             , &
          flux1_fraction_by_pft_type = pconv                               , &
          var                        = veg_ns%deadstemn   (begp:endp)    , &
          flux1_out                  = conv_nflux           (begp:endp)    , &
@@ -831,7 +774,7 @@ contains
          var               = veg_ns%ntrunc(begp:endp)             , &
          flux_out_grc_area = conv_nflux(begp:endp))
 
-    ! 23) NPOOL_PATCH
+    ! 23) CPOOL_PATCH
     call patch_state_updater%update_patch_state(                      &
          bounds                                                     , &
          num_filterp_with_inactive                                  , &
@@ -868,27 +811,6 @@ contains
          var               = veg_ns%totpftn(begp:endp))
 
     if (use_crop) then
-       call patch_state_updater%update_patch_state(         &
-            bounds                                        , &
-            num_filterp_with_inactive                     , &
-            filterp_with_inactive                         , &
-            var = veg_ns%grainn(begp:endp)                , &
-            flux_out_col_area = crop_product_nflux(begp:endp))
-
-       call patch_state_updater%update_patch_state(         &
-            bounds                                        , &
-            num_filterp_with_inactive                     , &
-            filterp_with_inactive                         , &
-            var = veg_ns%grainn_storage(begp:endp)        , &
-            flux_out_grc_area = conv_nflux(begp:endp))
-
-       call patch_state_updater%update_patch_state(         &
-            bounds                                        , &
-            num_filterp_with_inactive                     , &
-            filterp_with_inactive                         , &
-            var = veg_ns%grainn_xfer(begp:endp)           , &
-            flux_out_grc_area = conv_nflux(begp:endp))
-
        ! This is a negative pool. So any deficit that we haven't repaid gets sucked out
        ! of the atmosphere.
        call patch_state_updater%update_patch_state(         &
@@ -974,50 +896,7 @@ contains
        col_ns%dyn_nbal_adjustments(begc:endc) = &
            col_ns%dyn_nbal_adjustments(begc:endc) + &
            adjustment_one_level(begc:endc) * dzsoi_decomp(j)
-
-       call column_state_updater%update_column_state_no_special_handling( &
-            bounds      = bounds                          , &
-            clump_index = clump_index                     , &
-            var         = col_ns%smin_nh4_vr(begc:endc, j) , &
-            adjustment  = adjustment_one_level(begc:endc))
-       
-       call column_state_updater%update_column_state_no_special_handling( &
-            bounds      = bounds                          , &
-            clump_index = clump_index                     , &
-            var         = col_ns%smin_no3_vr(begc:endc, j) , &
-            adjustment  = adjustment_one_level(begc:endc))
-        
     end do
-
-    call column_state_updater%update_column_state_no_special_handling( &
-         bounds      = bounds,                                         &
-         clump_index = clump_index,                                    &
-         var         = col_ns%prod1n(begc:endc),     &
-         adjustment  = adjustment_one_level(begc:endc))
-
-    col_ns%dyn_nbal_adjustments(begc:endc) = &
-         col_ns%dyn_nbal_adjustments(begc:endc) + &
-         adjustment_one_level(begc:endc)
-
-    call column_state_updater%update_column_state_no_special_handling( &
-         bounds      = bounds,                                         &
-         clump_index = clump_index,                                    &
-         var         = col_ns%prod10n(begc:endc),     &
-         adjustment  = adjustment_one_level(begc:endc))
-
-    col_ns%dyn_nbal_adjustments(begc:endc) = &
-         col_ns%dyn_nbal_adjustments(begc:endc) + &
-         adjustment_one_level(begc:endc)
-
-    call column_state_updater%update_column_state_no_special_handling( &
-         bounds      = bounds,                                         &
-         clump_index = clump_index,                                    &
-         var         = col_ns%prod100n(begc:endc),     &
-         adjustment  = adjustment_one_level(begc:endc))
-
-    col_ns%dyn_nbal_adjustments(begc:endc) = &
-         col_ns%dyn_nbal_adjustments(begc:endc) + &
-         adjustment_one_level(begc:endc)
 
   end subroutine dyn_col_ns_Adjustments
 
@@ -1186,7 +1065,6 @@ contains
          bounds                                                           , &
          num_filterp_with_inactive                                        , &
          filterp_with_inactive                                            , &
-         flux1_out_dest = 'flux_out_col_area'                             , &
          flux1_fraction_by_pft_type = pprod10                             , &
          var                        = deadstemp_patch_temp    (begp:endp) , &
          flux1_out                  = prod10_pflux            (begp:endp) , &
@@ -1200,7 +1078,6 @@ contains
          bounds                                                           , &
          num_filterp_with_inactive                                        , &
          filterp_with_inactive                                            , &
-         flux1_out_dest = 'flux_out_col_area'                             , &
          flux1_fraction_by_pft_type = pprod100                            , &
          var                        = deadstemp_patch_temp    (begp:endp) , &
          flux1_out                  = prod100_pflux           (begp:endp) , &
@@ -1213,7 +1090,6 @@ contains
          bounds                                                           , &
          num_filterp_with_inactive                                        , &
          filterp_with_inactive                                            , &
-         flux1_out_dest = 'flux_out_grc_area'                             , &
          flux1_fraction_by_pft_type = pconv                               , &
          var                        = veg_ps%deadstemp   (begp:endp)    , &
          flux1_out                  = conv_pflux           (begp:endp)    , &
@@ -1362,27 +1238,6 @@ contains
          var               = veg_ps%totpftp(begp:endp))
 
     if (use_crop) then
-       call patch_state_updater%update_patch_state(         &
-            bounds                                        , &
-            num_filterp_with_inactive                     , &
-            filterp_with_inactive                         , &
-            var = veg_ps%grainp(begp:endp)                , &
-            flux_out_col_area = crop_product_pflux(begp:endp))
-
-       call patch_state_updater%update_patch_state(         &
-            bounds                                        , &
-            num_filterp_with_inactive                     , &
-            filterp_with_inactive                         , &
-            var = veg_ps%grainp_storage(begp:endp)        , &
-            flux_out_grc_area = conv_pflux(begp:endp))
-
-       call patch_state_updater%update_patch_state(         &
-            bounds                                        , &
-            num_filterp_with_inactive                     , &
-            filterp_with_inactive                         , &
-            var = veg_ps%grainp_xfer(begp:endp)           , &
-            flux_out_grc_area = conv_pflux(begp:endp))
-
        ! This is a negative pool. So any deficit that we haven't repaid gets sucked out
        ! of the atmosphere.
        call patch_state_updater%update_patch_state(         &
@@ -1487,49 +1342,7 @@ contains
        col_ps%dyn_pbal_adjustments(begc:endc) =      &
             col_ps%dyn_pbal_adjustments(begc:endc) + &
             adjustment_one_level(begc:endc) * dzsoi_decomp(j)
-
-       call column_state_updater%update_column_state_no_special_handling( &
-            bounds      = bounds,                                         &
-            clump_index = clump_index,                                    &
-            var         = col_ps%occlp_vr(begc:endc,j),               &
-            adjustment  = adjustment_one_level(begc:endc))
-
-       call column_state_updater%update_column_state_no_special_handling( &
-            bounds      = bounds,                                         &
-            clump_index = clump_index,                                    &
-            var         = col_ps%primp_vr(begc:endc,j),               &
-            adjustment  = adjustment_one_level(begc:endc))
     end do
-
-    call column_state_updater%update_column_state_no_special_handling( &
-         bounds      = bounds,                                         &
-         clump_index = clump_index,                                    &
-         var         = col_ps%prod1p(begc:endc),     &
-         adjustment  = adjustment_one_level(begc:endc))
-
-    col_ps%dyn_pbal_adjustments(begc:endc) = &
-         col_ps%dyn_pbal_adjustments(begc:endc) + &
-         adjustment_one_level(begc:endc)
-
-    call column_state_updater%update_column_state_no_special_handling( &
-         bounds      = bounds,                                         &
-         clump_index = clump_index,                                    &
-         var         = col_ps%prod10p(begc:endc),     &
-         adjustment  = adjustment_one_level(begc:endc))
-
-    col_ps%dyn_pbal_adjustments(begc:endc) = &
-         col_ps%dyn_pbal_adjustments(begc:endc) + &
-         adjustment_one_level(begc:endc)
-
-    call column_state_updater%update_column_state_no_special_handling( &
-         bounds      = bounds,                                         &
-         clump_index = clump_index,                                    &
-         var         = col_ps%prod100p(begc:endc),     &
-         adjustment  = adjustment_one_level(begc:endc))
-
-    col_ps%dyn_pbal_adjustments(begc:endc) = &
-         col_ps%dyn_pbal_adjustments(begc:endc) + &
-         adjustment_one_level(begc:endc)
 
   end subroutine dyn_col_ps_Adjustments
   

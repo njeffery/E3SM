@@ -10,10 +10,9 @@ module WaterstateType
   use shr_kind_mod   , only : r8 => shr_kind_r8
   use shr_log_mod    , only : errMsg => shr_log_errMsg
   use decompMod      , only : bounds_type
-  use elm_varctl     , only : use_vancouver, use_mexicocity, use_cn, iulog, use_fates_planthydro, &
-                              use_hydrstress
-  use elm_varpar     , only : nlevgrnd, nlevurb, nlevsno 
-  use elm_varcon     , only : spval
+  use clm_varctl     , only : use_vancouver, use_mexicocity, use_cn, iulog, use_fates_planthydro
+  use clm_varpar     , only : nlevgrnd, nlevurb, nlevsno   
+  use clm_varcon     , only : spval
   use LandunitType   , only : lun_pp                
   use ColumnType     , only : col_pp                
   !
@@ -305,9 +304,9 @@ contains
     !
     ! !USES:
     use shr_infnan_mod , only : nan => shr_infnan_nan, assignment(=)
-    use elm_varctl     , only : create_glacier_mec_landunit, use_cn, use_lch4
-    use elm_varctl     , only : hist_wrtch4diag
-    use elm_varpar     , only : nlevsno, crop_prog 
+    use clm_varctl     , only : create_glacier_mec_landunit, use_cn, use_lch4
+    use clm_varctl     , only : hist_wrtch4diag
+    use clm_varpar     , only : nlevsno, crop_prog 
     use histFileMod    , only : hist_addfld1d, hist_addfld2d, no_snow_normal, no_snow_zero
     !
     ! !ARGUMENTS:
@@ -335,7 +334,7 @@ contains
     ! snow layer existed by running the snow averaging routine on a field whose value is 1
     ! everywhere
     data2dptr => this%snow_layer_unity_col(:,-nlevsno+1:0)
-    call hist_addfld2d (fname='SNO_EXISTENCE', units='1', type2d='levsno', &
+    call hist_addfld2d (fname='SNO_EXISTENCE', units='unitless', type2d='levsno', &
          avgflag='A', long_name='Fraction of averaging period for which each snow layer existed', &
          ptr_col=data2dptr, no_snow_behavior=no_snow_zero, default='inactive')
 
@@ -355,13 +354,13 @@ contains
     use shr_spfn_mod    , only : shr_spfn_erf
     use shr_kind_mod    , only : r8 => shr_kind_r8
     use shr_const_mod   , only : SHR_CONST_TKFRZ
-    use elm_varpar      , only : nlevsoi, nlevgrnd, nlevsno, nlevlak, nlevurb
+    use clm_varpar      , only : nlevsoi, nlevgrnd, nlevsno, nlevlak, nlevurb
     use landunit_varcon , only : istice, istwet, istsoil, istdlak, istcrop, istice_mec  
     use column_varcon   , only : icol_shadewall, icol_road_perv
     use column_varcon   , only : icol_road_imperv, icol_roof, icol_sunwall
-    use elm_varcon      , only : denice, denh2o, spval, sb, bdsno 
-    use elm_varcon      , only : h2osno_max, zlnd, tfrz, spval, pc
-    use elm_varctl      , only : fsurdat, iulog
+    use clm_varcon      , only : denice, denh2o, spval, sb, bdsno 
+    use clm_varcon      , only : h2osno_max, zlnd, tfrz, spval, pc
+    use clm_varctl      , only : fsurdat, iulog
     use spmdMod         , only : masterproc
     use abortutils      , only : endrun
     use fileutils       , only : getfil
@@ -490,11 +489,11 @@ contains
     !
     ! !USES:
     use spmdMod          , only : masterproc
-    use elm_varcon       , only : denice, denh2o, pondmx, watmin, spval  
+    use clm_varcon       , only : denice, denh2o, pondmx, watmin, spval  
     use landunit_varcon  , only : istcrop, istdlak, istsoil  
     use column_varcon    , only : icol_roof, icol_sunwall, icol_shadewall
     use clm_time_manager , only : is_first_step
-    use elm_varctl       , only : bound_h2osoi
+    use clm_varctl       , only : bound_h2osoi
     use ncdio_pio        , only : file_desc_t, ncd_io, ncd_double
     use restUtilMod
     use subgridAveMod    , only : c2g
@@ -516,15 +515,6 @@ contains
 
     SHR_ASSERT_ALL((ubound(watsat_col) == (/bounds%endc,nlevgrnd/)) , errMsg(__FILE__, __LINE__))
 
-
-    call restartvar(ncid=ncid, flag=flag, varname='TWS_MONTH_BEGIN', xtype=ncd_double,  &
-         dim1name='gridcell', &
-         long_name='surface watertotal water storage at the beginning of a month', units='mm', &
-          interpinic_flag='interp', readvar=readvar, data=this%tws_month_beg_grc)
-
-    call restartvar(ncid=ncid, flag=flag, varname='ENDWB_COL', xtype=ncd_double, &
-         dim1name='column', long_name='col-level water mass end of the time step', &
-         units='mm', interpinic_flag='interp', readvar=readvar, data=this%endwb_col)
 
   end subroutine Restart
 

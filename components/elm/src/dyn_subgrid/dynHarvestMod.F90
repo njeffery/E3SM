@@ -24,7 +24,7 @@ module dynHarvestMod
   use CNCarbonFluxType      , only : carbonflux_type
   use CNNitrogenFluxType    , only : nitrogenflux_type
    use VegetationPropertiesType        , only : veg_vp
-  use elm_varcon            , only : grlnd
+  use clm_varcon            , only : grlnd
   use PhosphorusStateType   , only : phosphorusstate_type
   use PhosphorusFluxType    , only : phosphorusflux_type
   use ColumnType            , only : col_pp
@@ -53,8 +53,8 @@ module dynHarvestMod
   type(dyn_file_type), target :: dynHarvest_file ! information for the file containing harvest data
 
   ! Define the underlying harvest variables
-  integer, public, parameter :: num_harvest_vars = 5
-  character(len=64), public, parameter :: harvest_varnames(num_harvest_vars) = &
+  integer, parameter :: num_harvest_vars = 5
+  character(len=64), parameter :: harvest_varnames(num_harvest_vars) = &
        [character(len=64) :: 'HARVEST_VH1', 'HARVEST_VH2', 'HARVEST_SH1', 'HARVEST_SH2', 'HARVEST_SH3']
   
   type(dyn_var_time_uninterp_type) :: harvest_vars(num_harvest_vars)   ! value of each harvest variable
@@ -75,7 +75,7 @@ contains
     ! This also calls dynHarvest_interp for the initial time
     !
     ! !USES:
-    use elm_varctl            , only : use_cn
+    use clm_varctl            , only : use_cn
     use dynVarTimeUninterpMod , only : dyn_var_time_uninterp_type
     use dynTimeInfoMod        , only : YEAR_POSITION_START_OF_TIMESTEP
     use dynTimeInfoMod        , only : YEAR_POSITION_END_OF_TIMESTEP
@@ -130,7 +130,7 @@ contains
     ! year, with abrupt changes in the rate at annual boundaries.
     !
     ! !USES:
-    use elm_varctl     , only : use_cn
+    use clm_varctl     , only : use_cn
     use dynTimeInfoMod , only : time_info_type
     !
     ! !ARGUMENTS:
@@ -184,7 +184,7 @@ contains
     !
     ! !USES:
     use pftvarcon       , only : noveg, nbrdlf_evr_shrub, pprodharv10
-    use elm_varcon      , only : secspday
+    use clm_varcon      , only : secspday
     use clm_time_manager, only : get_days_per_year
     !
     ! !ARGUMENTS:
@@ -486,7 +486,7 @@ contains
    ! to the column level and assign them to the three litter pools
    !
    ! !USES:
-   use elm_varpar , only : maxpatch_pft, nlevdecomp
+   use clm_varpar , only : maxpatch_pft, nlevdecomp
    !
    ! !ARGUMENTS:
    integer                   , intent(in)    :: num_soilc       ! number of soil columns in filter

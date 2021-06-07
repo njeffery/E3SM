@@ -6,7 +6,7 @@ module WaterfluxType
   ! !USES:
   use shr_kind_mod , only: r8 => shr_kind_r8
   use decompMod    , only : bounds_type, get_proc_global
-  use elm_varcon   , only : spval
+  use clm_varcon   , only : spval
   use LandunitType , only : lun_pp                
   use ColumnType   , only : col_pp                
   use VegetationType    , only : veg_pp                
@@ -40,7 +40,6 @@ module WaterfluxType
      real(r8), pointer :: qflx_evap_tot_col        (:)   ! col col_qflx_evap_soi + col_qflx_evap_veg + qflx_tran_veg
      real(r8), pointer :: qflx_evap_grnd_patch     (:)   ! patch ground surface evaporation rate (mm H2O/s) [+]
      real(r8), pointer :: qflx_evap_grnd_col       (:)   ! col ground surface evaporation rate (mm H2O/s) [+]
-     real(r8), pointer :: qflx_phs_neg_col         (:)   ! col sum of negative hydraulic redistribution fluxes (mm H2O/s) [+]
      real(r8), pointer :: qflx_snwcp_liq_patch     (:)   ! patch excess rainfall due to snow capping (mm H2O /s)
      real(r8), pointer :: qflx_snwcp_liq_col       (:)   ! col excess rainfall due to snow capping (mm H2O /s)
      real(r8), pointer :: qflx_snwcp_ice_patch     (:)   ! patch excess snowfall due to snow capping (mm H2O /s)
@@ -137,7 +136,6 @@ module WaterfluxType
      real(r8), pointer :: mflx_et_col              (:,:) ! evapotranspiration sink from all soil coontrol volumes (kg H2O /s)
      real(r8), pointer :: mflx_drain_col           (:,:) ! drainage from groundwater table (kg H2O /s)
      real(r8), pointer :: mflx_recharge_col        (:)   ! recharge from soil column to unconfined aquifer (kg H2O /s)
-     real(r8), pointer :: sapflow_patch (:) !plant hydraulics, (mm/s)
 
    contains
  
@@ -173,7 +171,7 @@ contains
     !
     ! !USES:
     use shr_infnan_mod , only : nan => shr_infnan_nan, assignment(=)
-    use elm_varpar     , only : nlevsno, nlevgrnd, nlevsoi
+    use clm_varpar     , only : nlevsno, nlevgrnd, nlevsoi
     !
     ! !ARGUMENTS:
     class(waterflux_type) :: this
@@ -216,7 +214,6 @@ contains
     allocate(this%qflx_evap_soi_col        (begc:endc))              ; this%qflx_evap_soi_col        (:)   = nan
     allocate(this%qflx_evap_tot_col        (begc:endc))              ; this%qflx_evap_tot_col        (:)   = nan
     allocate(this%qflx_evap_grnd_col       (begc:endc))              ; this%qflx_evap_grnd_col       (:)   = nan
-    allocate(this%qflx_phs_neg_col         (begc:endc))              ; this%qflx_phs_neg_col       (:)   = nan
     allocate(this%qflx_dew_grnd_col        (begc:endc))              ; this%qflx_dew_grnd_col        (:)   = nan
     allocate(this%qflx_dew_snow_col        (begc:endc))              ; this%qflx_dew_snow_col        (:)   = nan
     allocate(this%qflx_evap_veg_patch      (begp:endp))              ; this%qflx_evap_veg_patch      (:)   = nan
@@ -307,8 +304,8 @@ contains
     allocate(this%mflx_sub_snow_col      (begc:endc))                ; this%mflx_sub_snow_col        (:)   = nan
     allocate(this%mflx_et_col            (begc:endc,1:nlevgrnd))     ; this%mflx_et_col              (:,:) = nan
     allocate(this%mflx_drain_col         (begc:endc,1:nlevgrnd))     ; this%mflx_drain_col           (:,:) = nan
+    allocate(this%mflx_sub_snow_col      (begc:endc))                ; this%mflx_sub_snow_col        (:)   = nan
     allocate(this%mflx_recharge_col      (begc:endc))                ; this%mflx_recharge_col        (:)   = nan
-    allocate(this%sapflow_patch          (begp:endp))                ; this%sapflow_patch              (:) = nan
 
   end subroutine InitAllocate
 
@@ -317,8 +314,8 @@ contains
     !
     ! !USES:
     use shr_infnan_mod , only : nan => shr_infnan_nan, assignment(=)
-    use elm_varctl     , only : create_glacier_mec_landunit, use_cn, use_lch4
-    use elm_varpar     , only : nlevsno, crop_prog, nlevsoi 
+    use clm_varctl     , only : create_glacier_mec_landunit, use_cn, use_lch4
+    use clm_varpar     , only : nlevsno, crop_prog, nlevsoi 
     use histFileMod    , only : hist_addfld1d, hist_addfld2d, no_snow_normal
     !
     ! !ARGUMENTS:
@@ -362,8 +359,6 @@ contains
     this%qflx_evap_grnd_col(bounds%begc:bounds%endc) = 0.0_r8
     this%qflx_dew_grnd_col (bounds%begc:bounds%endc) = 0.0_r8
     this%qflx_dew_snow_col (bounds%begc:bounds%endc) = 0.0_r8
-    
-    this%qflx_phs_neg_col(bounds%begc:bounds%endc)   = 0.0_r8
 
     this%qflx_h2osfc_surf_col(bounds%begc:bounds%endc) = 0._r8
     this%qflx_snow_melt_col(bounds%begc:bounds%endc)   = 0._r8
@@ -395,10 +390,10 @@ contains
     ! 
     ! !USES:
     use spmdMod          , only : masterproc
-    use elm_varcon       , only : denice, denh2o, pondmx, watmin
+    use clm_varcon       , only : denice, denh2o, pondmx, watmin
     use landunit_varcon  , only : istcrop, istdlak, istsoil 
     use column_varcon    , only : icol_roof, icol_sunwall, icol_shadewall
-    use elm_varpar       , only : nlevgrnd, nlevurb, nlevsno   
+    use clm_varpar       , only : nlevgrnd, nlevurb, nlevsno   
     use ncdio_pio        , only : file_desc_t, ncd_io, ncd_double, ncd_int, ncd_inqvdlen
     use restUtilMod
     !

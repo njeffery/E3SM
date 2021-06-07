@@ -6,7 +6,7 @@ module SurfaceAlbedoType
   use shr_kind_mod   , only : r8 => shr_kind_r8
   use shr_log_mod    , only : errMsg => shr_log_errMsg
   use decompMod      , only : bounds_type
-  use elm_varpar     , only : numrad, nlevcan, nlevsno
+  use clm_varpar     , only : numrad, nlevcan, nlevsno
   use abortutils     , only : endrun
   !
   ! !PUBLIC TYPES:
@@ -92,7 +92,7 @@ contains
     !
     ! !USES:
     use shr_infnan_mod, only: nan => shr_infnan_nan, assignment(=)
-    use elm_varcon    , only: spval, ispval
+    use clm_varcon    , only: spval, ispval
     !
     ! !ARGUMENTS:
     class(surfalb_type) :: this
@@ -159,7 +159,7 @@ contains
     !
     ! !USES:
     use shr_infnan_mod, only: nan => shr_infnan_nan, assignment(=)
-    use elm_varcon    , only: spval
+    use clm_varcon    , only: spval
     use histFileMod   , only: hist_addfld1d, hist_addfld2d
     !
     ! !ARGUMENTS:
@@ -175,7 +175,7 @@ contains
     begc = bounds%begc; endc = bounds%endc
 
     this%coszen_col(begc:endc) = spval
-    call hist_addfld1d (fname='COSZEN', units='1', &
+    call hist_addfld1d (fname='COSZEN', units='none', &
          avgflag='A', long_name='cosine of solar zenith angle', &
          ptr_col=this%coszen_col, default='inactive')
 
@@ -256,7 +256,7 @@ contains
     ! Read/Write module information to/from restart file.
     !
     ! !USES:
-    use elm_varctl , only : use_snicar_frc, iulog 
+    use clm_varctl , only : use_snicar_frc, iulog 
     use spmdMod    , only : masterproc
     use decompMod  , only : bounds_type
     use abortutils , only : endrun
@@ -286,7 +286,7 @@ contains
 
     call restartvar(ncid=ncid, flag=flag, varname='coszen', xtype=ncd_double,  & 
          dim1name='column', &
-         long_name='cosine of solar zenith angle', units='1', &
+         long_name='cosine of solar zenith angle', units='unitless', &
          interpinic_flag='interp', readvar=readvar, data=this%coszen_col)
 
     call restartvar(ncid=ncid, flag=flag, varname='albd', xtype=ncd_double,  & 

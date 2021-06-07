@@ -7,9 +7,9 @@ module GridcellDataType
   !
   use shr_kind_mod      , only : r8 => shr_kind_r8
   use shr_infnan_mod    , only : nan => shr_infnan_nan, assignment(=)
-  use elm_varpar        , only : nlevsno, nlevgrnd, nlevlak, nlevurb
-  use elm_varcon        , only : spval, ispval
-  use elm_varctl        , only : use_fates
+  use clm_varpar        , only : nlevsno, nlevgrnd, nlevlak, nlevurb
+  use clm_varcon        , only : spval, ispval
+  use clm_varctl        , only : use_fates
   use histFileMod       , only : hist_addfld1d, hist_addfld2d, no_snow_normal
   use ncdio_pio         , only : file_desc_t, ncd_double
   use decompMod         , only : bounds_type
@@ -129,8 +129,6 @@ module GridcellDataType
     real(r8), pointer :: dwt_prod100c_gain          (:) => null()  ! (gC/m2/s) dynamic landcover addition to 100-year wood product pool
     real(r8), pointer :: hrv_deadstemc_to_prod10c   (:) => null()  ! (gC/m2/s) dead stem harvest to 10-year wood product pool
     real(r8), pointer :: hrv_deadstemc_to_prod100c  (:) => null()  ! (gC/m2/s) dead stem harvest to 100-year wood product pool
-    real(r8), pointer :: cinputs                    (:) => null()  ! (gC/m2/s) grid-level C inputs
-    real(r8), pointer :: coutputs                   (:) => null()  ! (gC/m2/s) grid-level C outputs
 
   contains
     procedure, public :: Init    => grc_cf_init
@@ -163,8 +161,6 @@ module GridcellDataType
     real(r8), pointer :: dwt_seedn_to_npool     (:) => null()  ! (gN/m2/s) seed source to PFT level
     real(r8), pointer :: dwt_prod10n_gain       (:) => null()  ! (gN/m2/s) addition to 10-yr wood product pool
     real(r8), pointer :: dwt_prod100n_gain      (:) => null()  ! (gN/m2/s) addition to 100-yr wood product pool
-    real(r8), pointer :: ninputs                (:) => null()  ! (gN/m2/s) grid-level N inputs
-    real(r8), pointer :: noutputs               (:) => null()  ! (gN/m2/s) grid-level N outputs
   contains
     procedure, public :: Init    => grc_nf_init
     procedure, public :: ZeroDWT => grc_nf_zerodwt
@@ -194,8 +190,6 @@ module GridcellDataType
     real(r8), pointer :: dwt_seedp_to_ppool       (:)  ! (gP/m2/s) seed source to PFT-level
     real(r8), pointer :: dwt_prod10p_gain         (:)  ! (gP/m2/s) addition to 10-yr wood product pool
     real(r8), pointer :: dwt_prod100p_gain        (:)  ! (gP/m2/s) addition to 100-yr wood product pool
-    real(r8), pointer :: pinputs                  (:)  ! (gP/m2/s) grid-level P inputs
-    real(r8), pointer :: poutputs                 (:)  ! (gP/m2/s) grid-level P outputs
   contains
     procedure, public :: Init    => grc_pf_init
     procedure, public :: ZeroDWT => grc_pf_zerodwt
@@ -513,13 +507,11 @@ contains
   !------------------------------------------------------------------------
   ! Subroutines to initialize and clean gridcell carbon state data structure
   !------------------------------------------------------------------------
-  subroutine grc_cs_init(this, begg, endg,carbon_type)
+  subroutine grc_cs_init(this, begg, endg)
     !
     ! !ARGUMENTS:
     class(gridcell_carbon_state) :: this
     integer, intent(in) :: begg,endg
-    character(len=3) , intent(in) :: carbon_type ! one of ['c12', c13','c14']    
-
     !
     ! !LOCAL VARIABLES:
     integer :: g
@@ -537,24 +529,10 @@ contains
     ! initialize history fields for select members of grc_cs
     !-----------------------------------------------------------------------
     if (.not. use_fates) then
-       if (carbon_type == 'c12') then
-          this%seedc(begg:endg) = spval
-          call hist_addfld1d (fname='SEEDC_GRC', units='gC/m^2', &
-               avgflag='A', long_name='pool for seeding new PFTs via dynamic landcover', &
-               ptr_gcell=this%seedc)
-       end if 
-       if (carbon_type == 'c13') then
-          this%seedc(begg:endg) = spval
-          call hist_addfld1d (fname='C13_SEEDC_GRC', units='gC/m^2', &
-               avgflag='A', long_name='pool for seeding new PFTs via dynamic landcover', &
-               ptr_gcell=this%seedc)
-       end if 
-       if (carbon_type == 'c14') then
-          this%seedc(begg:endg) = spval
-          call hist_addfld1d (fname='C14_SEEDC_GRC', units='gC/m^2', &
-               avgflag='A', long_name='pool for seeding new PFTs via dynamic landcover', &
-               ptr_gcell=this%seedc)
-       end if 
+       this%seedc(begg:endg) = spval
+       call hist_addfld1d (fname='SEEDC_GRC', units='gC/m^2', &
+            avgflag='A', long_name='pool for seeding new PFTs via dynamic landcover', &
+            ptr_gcell=this%seedc)
     end if
     
     !-----------------------------------------------------------------------
@@ -604,8 +582,6 @@ contains
     allocate(this%dwt_prod100c_gain            (begg:endg)) ; this%dwt_prod100c_gain            (:) = nan
     allocate(this%hrv_deadstemc_to_prod10c     (begg:endg)) ; this%hrv_deadstemc_to_prod10c     (:) = nan
     allocate(this%hrv_deadstemc_to_prod100c    (begg:endg)) ; this%hrv_deadstemc_to_prod100c    (:) = nan
-    allocate(this%cinputs                      (begg:endg)) ; this%cinputs                      (:) = nan
-    allocate(this%coutputs                     (begg:endg)) ; this%coutputs                     (:) = nan
 
     !-----------------------------------------------------------------------
     ! initialize history fields for select members of grc_cf
@@ -769,8 +745,6 @@ contains
        this%dwt_prod100c_gain(g)         = 0._r8
        this%hrv_deadstemc_to_prod10c(g)  = 0._r8
        this%hrv_deadstemc_to_prod100c(g) = 0._r8
-       this%cinputs(g)                   = 0._r8
-       this%coutputs(g)                  = 0._r8
     end do
     
   end subroutine grc_cf_init
@@ -883,8 +857,6 @@ contains
     allocate(this%dwt_seedn_to_npool    (begg:endg)) ; this%dwt_seedn_to_npool    (:) = nan
     allocate(this%dwt_prod10n_gain      (begg:endg)) ; this%dwt_prod10n_gain      (:) = nan
     allocate(this%dwt_prod100n_gain     (begg:endg)) ; this%dwt_prod100n_gain     (:) = nan
-    allocate(this%ninputs               (begg:endg)) ; this%ninputs               (:) = nan
-    allocate(this%noutputs              (begg:endg)) ; this%noutputs              (:) = nan
     
     !-----------------------------------------------------------------------
     ! initialize history fields for select members of grc_nf
@@ -926,8 +898,6 @@ contains
     do g = begg, endg
        this%dwt_prod10n_gain(g)          = 0._r8
        this%dwt_prod100n_gain(g)         = 0._r8
-       this%ninputs(g)                   = 0._r8
-       this%noutputs(g)                  = 0._r8
     end do
     
   end subroutine grc_nf_init
@@ -1030,8 +1000,6 @@ contains
     allocate(this%dwt_seedp_to_ppool     (begg:endg))   ; this%dwt_seedp_to_ppool     (:) = nan
     allocate(this%dwt_prod10p_gain       (begg:endg))   ; this%dwt_prod10p_gain       (:) = nan
     allocate(this%dwt_prod100p_gain      (begg:endg))   ; this%dwt_prod100p_gain      (:) = nan
-    allocate(this%pinputs                (begg:endg))   ; this%pinputs                (:) = nan
-    allocate(this%poutputs               (begg:endg))   ; this%poutputs               (:) = nan
     
     !-----------------------------------------------------------------------
     ! initialize history fields for select members of grc_pf
@@ -1073,8 +1041,6 @@ contains
     do g = begg, endg
        this%dwt_prod10p_gain(g)          = 0._r8
        this%dwt_prod100p_gain(g)         = 0._r8
-       this%pinputs(g)                   = 0._r8
-       this%poutputs(g)                  = 0._r8
     end do
   
   end subroutine grc_pf_init

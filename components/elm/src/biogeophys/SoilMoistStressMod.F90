@@ -227,7 +227,7 @@ contains
     ! !USES
     use shr_kind_mod    , only: r8 => shr_kind_r8
     use shr_log_mod     , only : errMsg => shr_log_errMsg
-    use elm_varcon      , only : tfrz      !temperature where water freezes [K], this is taken as constant at the moment 
+    use clm_varcon      , only : tfrz      !temperature where water freezes [K], this is taken as constant at the moment 
     use decompMod       , only : bounds_type
     use CanopyStateType , only : canopystate_type
     use EnergyFluxType  , only : energyflux_type
@@ -324,7 +324,7 @@ contains
     use shr_kind_mod         , only : r8 => shr_kind_r8  
     use shr_log_mod          , only : errMsg => shr_log_errMsg
     use decompMod            , only : bounds_type
-    use elm_varcon           , only : tfrz      !temperature where water freezes [K], this is taken as constant at the moment
+    use clm_varcon           , only : tfrz      !temperature where water freezes [K], this is taken as constant at the moment
     use VegetationPropertiesType     , only : veg_vp
     use TemperatureType      , only : temperature_type
     use SoilStateType        , only : soilstate_type
@@ -332,7 +332,6 @@ contains
     use WaterSTateType       , only : waterstate_type
     use SoilWaterRetentionCurveMod, only : soil_water_retention_curve_type
     use VegetationType            , only : veg_pp
-    use elm_varctl       , only : use_hydrstress
     !
     ! !ARGUMENTS:
     implicit none
@@ -406,9 +405,7 @@ contains
                end if
 
                !it is possible to further separate out a btran function, but I will leave it for the moment, jyt
-               if( .not. use_hydrstress ) then
-                 btran(p)    = btran(p) + max(rootr(p,j),0._r8)
-               endif
+               btran(p)    = btran(p) + max(rootr(p,j),0._r8)
 
                !smp_node_lf = max(smpsc(veg_pp%itype(p)), -sucsat(c,j)*(h2osoi_vol(c,j)/watsat(c,j))**(-bsw(c,j)))
                s_node = h2osoi_vol(c,j)/watsat(c,j)
@@ -449,7 +446,7 @@ contains
     ! USES
     use shr_kind_mod    , only : r8 => shr_kind_r8  
     use shr_log_mod     , only : errMsg => shr_log_errMsg
-    use elm_varcon      , only : tfrz      !temperature where water freezes [K], this is taken as constant at the moment 
+    use clm_varcon      , only : tfrz      !temperature where water freezes [K], this is taken as constant at the moment 
     use decompMod       , only : bounds_type
     use CanopyStateType , only : canopystate_type
     use EnergyFluxType  , only : energyflux_type

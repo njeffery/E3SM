@@ -9,23 +9,19 @@ module CarbonStateUpdate1Mod
   use abortutils              , only : endrun
   use clm_time_manager        , only : get_step_size
   use decompMod               , only : bounds_type
-  use elm_varpar              , only : ndecomp_cascade_transitions, nlevdecomp
-  use elm_varpar              , only : i_met_lit, i_cel_lit, i_lig_lit, i_cwd
-  use elm_varcon              , only : dzsoi_decomp
-  use elm_varctl              , only : nu_com
-  use elm_varctl              , only : use_pflotran, pf_cmode, use_fates
-  use elm_varctl              , only : use_c13, use_c14
+  use clm_varpar              , only : ndecomp_cascade_transitions, nlevdecomp
+  use clm_varpar              , only : i_met_lit, i_cel_lit, i_lig_lit, i_cwd
+  use clm_varcon              , only : dzsoi_decomp
+  use clm_varctl              , only : nu_com
+  use clm_varctl              , only : use_pflotran, pf_cmode, use_fates
   use pftvarcon               , only : npcropmin, nc3crop
   use CNDecompCascadeConType  , only : decomp_cascade_type
   use CNStateType             , only : cnstate_type
   use CNDecompCascadeConType  , only : decomp_cascade_con
   use CropType                , only : crop_type
                               
-  use GridcellDataType        , only : grc_cs, c13_grc_cs, c14_grc_cs
-  use GridcellDataType        , only : grc_cf, c13_grc_cf, c14_grc_cf
+  use GridcellDataType        , only : gridcell_carbon_state, gridcell_carbon_flux
   use ColumnDataType          , only : column_carbon_state, column_carbon_flux
-  use ColumnDataType          , only : col_cs, c13_col_cs, c14_col_cs
-  use ColumnDataType          , only : col_cf, c13_col_cf, c14_col_cf
   use VegetationType          , only : veg_pp
   use VegetationDataType      , only : vegetation_carbon_state, vegetation_carbon_flux
   use VegetationPropertiesType, only : veg_vp
@@ -43,8 +39,8 @@ module CarbonStateUpdate1Mod
 contains
 
   !-----------------------------------------------------------------------
-  subroutine CarbonStateUpdateDynPatch(bounds, num_soilc_with_inactive, &
-       filter_soilc_with_inactive)
+  subroutine CarbonStateUpdateDynPatch(bounds, num_soilc_with_inactive, filter_soilc_with_inactive, &
+       grc_cs, grc_cf, col_cs, col_cf)
     !
     ! !DESCRIPTION:
     ! Update carbon states based on fluxes from dyn_cnbal_patch
@@ -53,6 +49,10 @@ contains
     type(bounds_type)      , intent(in)    :: bounds
     integer                , intent(in)    :: num_soilc_with_inactive       ! number of columns in soil filter
     integer                , intent(in)    :: filter_soilc_with_inactive(:) ! soil column filter that includes inactive points
+    type(gridcell_carbon_state), intent(inout)  :: grc_cs
+    type(gridcell_carbon_flux) , intent(inout)  :: grc_cf
+    type(column_carbon_state)  , intent(inout)  :: col_cs
+    type(column_carbon_flux)   , intent(in)     :: col_cf
     !
     ! !LOCAL VARIABLES:
     integer  :: c   ! column index
@@ -72,40 +72,11 @@ contains
           grc_cs%seedc(g) = grc_cs%seedc(g) &
                - grc_cf%dwt_seedc_to_leaf(g)     * dt &
                - grc_cf%dwt_seedc_to_deadstem(g) * dt
-
-          if (use_c13) then
-             c13_grc_cs%seedc(g) = c13_grc_cs%seedc(g) &
-                - c13_grc_cf%dwt_seedc_to_leaf(g)     * dt &
-                - c13_grc_cf%dwt_seedc_to_deadstem(g) * dt
-          end if
-
-          if (use_c14) then
-             c14_grc_cs%seedc(g) = c14_grc_cs%seedc(g) &
-                - c14_grc_cf%dwt_seedc_to_leaf(g)     * dt &
-                - c14_grc_cf%dwt_seedc_to_deadstem(g) * dt
-          end if
        end do
 
-       do fc = 1, num_soilc_with_inactive
-          
-          c = filter_soilc_with_inactive(fc)
-          col_cs%prod10c(c) = col_cs%prod10c(c) + col_cf%dwt_prod10c_gain(c)*dt
-          col_cs%prod100c(c) = col_cs%prod100c(c) + col_cf%dwt_prod100c_gain(c)*dt
-          col_cs%prod1c(c) = col_cs%prod1c(c) + col_cf%dwt_crop_productc_gain(c)*dt
-
-          if (use_c13) then
-             c13_col_cs%prod10c(c) = c13_col_cs%prod10c(c) + c13_col_cf%dwt_prod10c_gain(c)*dt
-             c13_col_cs%prod100c(c) = c13_col_cs%prod100c(c) + c13_col_cf%dwt_prod100c_gain(c)*dt
-             c13_col_cs%prod1c(c) = c13_col_cs%prod1c(c) + c13_col_cf%dwt_crop_productc_gain(c)*dt
-          end if
-
-          if (use_c14) then
-             c14_col_cs%prod10c(c) = c14_col_cs%prod10c(c) + c14_col_cf%dwt_prod10c_gain(c)*dt
-             c14_col_cs%prod100c(c) = c14_col_cs%prod100c(c) + c14_col_cf%dwt_prod100c_gain(c)*dt
-             c14_col_cs%prod1c(c) = c14_col_cs%prod1c(c) + c14_col_cf%dwt_crop_productc_gain(c)*dt
-          end if
-          
-          do j = 1,nlevdecomp
+       do j = 1,nlevdecomp
+          do fc = 1, num_soilc_with_inactive
+             c = filter_soilc_with_inactive(fc)
 
              col_cs%decomp_cpools_vr(c,j,i_met_lit) = col_cs%decomp_cpools_vr(c,j,i_met_lit) + &
                   col_cf%dwt_frootc_to_litr_met_c(c,j) * dt
@@ -115,28 +86,6 @@ contains
                   col_cf%dwt_frootc_to_litr_lig_c(c,j) * dt
              col_cs%decomp_cpools_vr(c,j,i_cwd) = col_cs%decomp_cpools_vr(c,j,i_cwd) + &
                   ( col_cf%dwt_livecrootc_to_cwdc(c,j) + col_cf%dwt_deadcrootc_to_cwdc(c,j) ) * dt
-
-             if (use_c13) then
-                c13_col_cs%decomp_cpools_vr(c,j,i_met_lit) = c13_col_cs%decomp_cpools_vr(c,j,i_met_lit) + &
-                     c13_col_cf%dwt_frootc_to_litr_met_c(c,j) * dt
-                c13_col_cs%decomp_cpools_vr(c,j,i_cel_lit) = c13_col_cs%decomp_cpools_vr(c,j,i_cel_lit) + &
-                     c13_col_cf%dwt_frootc_to_litr_cel_c(c,j) * dt
-                c13_col_cs%decomp_cpools_vr(c,j,i_lig_lit) = c13_col_cs%decomp_cpools_vr(c,j,i_lig_lit) + &
-                     c13_col_cf%dwt_frootc_to_litr_lig_c(c,j) * dt
-                c13_col_cs%decomp_cpools_vr(c,j,i_cwd) = c13_col_cs%decomp_cpools_vr(c,j,i_cwd) + &
-                     ( c13_col_cf%dwt_livecrootc_to_cwdc(c,j) + c13_col_cf%dwt_deadcrootc_to_cwdc(c,j) ) * dt
-             end if
-
-             if (use_c14) then
-                c14_col_cs%decomp_cpools_vr(c,j,i_met_lit) = c14_col_cs%decomp_cpools_vr(c,j,i_met_lit) + &
-                     c14_col_cf%dwt_frootc_to_litr_met_c(c,j) * dt
-                c14_col_cs%decomp_cpools_vr(c,j,i_cel_lit) = c14_col_cs%decomp_cpools_vr(c,j,i_cel_lit) + &
-                     c14_col_cf%dwt_frootc_to_litr_cel_c(c,j) * dt
-                c14_col_cs%decomp_cpools_vr(c,j,i_lig_lit) = c14_col_cs%decomp_cpools_vr(c,j,i_lig_lit) + &
-                     c14_col_cf%dwt_frootc_to_litr_lig_c(c,j) * dt
-                c14_col_cs%decomp_cpools_vr(c,j,i_cwd) = c14_col_cs%decomp_cpools_vr(c,j,i_cwd) + &
-                     ( c14_col_cf%dwt_livecrootc_to_cwdc(c,j) + c14_col_cf%dwt_deadcrootc_to_cwdc(c,j) ) * dt
-             end if
 
           end do
        end do
@@ -220,29 +169,30 @@ contains
 
       ! column level fluxes
 
-      do fc = 1,num_soilc
-          c = filter_soilc(fc)
-          col_cs%decomp_som2c_vr(c,1:nlevdecomp) = col_cs%decomp_cpools_vr(c,1:nlevdecomp,6)
-      end do
+      if(.not.use_fates) then
+         do fc = 1,num_soilc
+            c = filter_soilc(fc)
+            col_cs%decomp_som2c_vr(c,1:nlevdecomp) = col_cs%decomp_cpools_vr(c,1:nlevdecomp,6)
+         end do
+      end if
       
-      if (.not. is_active_betr_bgc .and. .not.(use_pflotran .and. pf_cmode) ) then
+      if (.not. is_active_betr_bgc .and. .not.(use_pflotran .and. pf_cmode) .and. .not.use_fates ) then
 
          ! plant to litter fluxes
-         if(.not.use_fates)then
-            do j = 1,nlevdecomp
-               ! column loop
-               do fc = 1,num_soilc
-                  c = filter_soilc(fc)
-                  ! phenology and dynamic land cover fluxes
-                  col_cf%decomp_cpools_sourcesink(c,j,i_met_lit) = &
-                       col_cf%phenology_c_to_litr_met_c(c,j) * dt
-                  col_cf%decomp_cpools_sourcesink(c,j,i_cel_lit) = &
-                       col_cf%phenology_c_to_litr_cel_c(c,j) * dt
-                  col_cf%decomp_cpools_sourcesink(c,j,i_lig_lit) = &
-                       col_cf%phenology_c_to_litr_lig_c(c,j) * dt
-               end do
+
+         do j = 1,nlevdecomp
+            ! column loop
+            do fc = 1,num_soilc
+               c = filter_soilc(fc)
+               ! phenology and dynamic land cover fluxes
+               col_cf%decomp_cpools_sourcesink(c,j,i_met_lit) = &
+                    col_cf%phenology_c_to_litr_met_c(c,j) * dt
+               col_cf%decomp_cpools_sourcesink(c,j,i_cel_lit) = &
+                    col_cf%phenology_c_to_litr_cel_c(c,j) * dt
+               col_cf%decomp_cpools_sourcesink(c,j,i_lig_lit) = &
+                    col_cf%phenology_c_to_litr_lig_c(c,j) * dt
             end do
-         end if
+         end do
 
          ! litter and SOM HR fluxes
          do k = 1, ndecomp_cascade_transitions
@@ -270,9 +220,40 @@ contains
             end if
          end do
 
-      endif   !end if is_active_betr_bgc()
+      elseif( use_fates ) then
 
-      if (.not.use_fates) then
+         ! The following pools were updated via the FATES interface
+         ! col_cf%decomp_cpools_sourcesink(c,j,i_met_lit)
+         ! col_cf%decomp_cpools_sourcesink(c,j,i_cel_lit)
+         ! col_cf%decomp_cpools_sourcesink(c,j,i_lig_lit)
+
+         ! litter and SOM HR fluxes
+         do k = 1, ndecomp_cascade_transitions
+            do j = 1,nlevdecomp
+               do fc = 1,num_soilc
+                  c = filter_soilc(fc)
+                  col_cf%decomp_cpools_sourcesink(c,j,cascade_donor_pool(k)) = &
+                        col_cf%decomp_cpools_sourcesink(c,j,cascade_donor_pool(k)) &
+                        - ( col_cf%decomp_cascade_hr_vr(c,j,k) + col_cf%decomp_cascade_ctransfer_vr(c,j,k)) *dt
+               end do
+            end do
+         end do
+         do k = 1, ndecomp_cascade_transitions
+            if ( cascade_receiver_pool(k) /= 0 ) then  ! skip terminal transitions
+               do j = 1,nlevdecomp
+                  do fc = 1,num_soilc
+                     c = filter_soilc(fc)
+                     col_cf%decomp_cpools_sourcesink(c,j,cascade_receiver_pool(k)) = &
+                           col_cf%decomp_cpools_sourcesink(c,j,cascade_receiver_pool(k)) &
+                           + col_cf%decomp_cascade_ctransfer_vr(c,j,k)*dt
+                  end do
+               end do
+            end if
+         end do
+
+   endif   !end if is_active_betr_bgc()
+
+   if (.not.use_fates) then
     
       ! patch loop
       do fp = 1,num_soilp
