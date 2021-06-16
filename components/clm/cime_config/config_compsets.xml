@@ -95,6 +95,11 @@
   </compset>
 
   <compset>
+    <alias>ICBCLM45CNCROP</alias>
+    <lname>1850_SATM_CLM45%CN-CROP_SICE_SOCN_MOSART_SGLC_SWAV</lname>
+  </compset>
+
+  <compset>
     <alias>IRCP45CLM45BGC</alias>
     <lname>RCP4_DATM%QIA_CLM45%BGC_SICE_SOCN_MOSART_SGLC_SWAV</lname>
   </compset>
