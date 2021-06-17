@@ -45,3 +45,6 @@
 [submodule "components/mpas-ocean/src/gotm"]
 	path = components/mpas-ocean/src/gotm
 	url = git@github.com:E3SM-Project/GOTMcode.git
+[submodule "cime"]
+	path = cime
+	url = git@github.com:ESMCI/cime.git
