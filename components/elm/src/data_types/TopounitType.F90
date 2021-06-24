@@ -10,7 +10,6 @@ module TopounitType
   use shr_kind_mod   , only : r8 => shr_kind_r8
   use shr_infnan_mod , only : nan => shr_infnan_nan, assignment(=)
   use shr_log_mod    , only : errMsg => shr_log_errMsg
-  ! use abortutils     , only : endrun
   use landunit_varcon, only : max_lunit
   use elm_varcon     , only : ispval, spval
   use elm_varpar     , only : numrad
@@ -46,7 +45,7 @@ module TopounitType
     ! this is for efficiency, since most loops will go over t in the outer loop, and
     ! landunit type in the inner loop)
     integer , pointer :: landunit_indices (:,:) => null() 
-	logical , pointer :: active       (:) => null() ! true=>do computations on this topounit 
+    logical , pointer :: active       (:) => null() ! true=>do computations on this topounit 
     
     ! physical properties
     real(r8), pointer :: area       (:) => null() ! land area (km^2)
@@ -89,7 +88,7 @@ module TopounitType
     allocate(this%npfts     (begt:endt)) ; this%npfts     (:) = ispval
     
     allocate(this%landunit_indices(1:max_lunit, begt:endt)); this%landunit_indices(:,:) = ispval
-	allocate(this%active      (begt:endt))                     ; this%active      (:)   = .false.
+    allocate(this%active      (begt:endt))                     ; this%active      (:)   = .false.
 
     allocate(this%area        (begt:endt)) ; this%area        (:) = nan
     allocate(this%lat         (begt:endt)) ; this%lat         (:) = nan
@@ -119,7 +118,7 @@ module TopounitType
     deallocate(this%pftf        )
     deallocate(this%npfts       )
     deallocate(this%landunit_indices )
-	deallocate(this%active     )
+    deallocate(this%active     )
 
     deallocate(this%area        )
     deallocate(this%lat         )
