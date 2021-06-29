@@ -2921,10 +2921,12 @@ contains
     integer :: g,c,l,topo,p              ! indices
     integer :: ier                       ! errir status
     real(r8), pointer :: rgarr(:)        ! temporary
+    real(r8), pointer :: rtarr(:)        ! temporary
     real(r8), pointer :: rcarr(:)        ! temporary
     real(r8), pointer :: rlarr(:)        ! temporary
     real(r8), pointer :: rparr(:)        ! temporary
     integer , pointer :: igarr(:)        ! temporary
+    integer , pointer :: itarr(:)        ! temporary
     integer , pointer :: icarr(:)        ! temporary
     integer , pointer :: ilarr(:)        ! temporary
     integer , pointer :: iparr(:)        ! temporary
@@ -2952,6 +2954,23 @@ contains
 
           call ncd_defvar(varname='grid1d_jxy', xtype=ncd_int, dim1name=nameg, &
                long_name='2d latitude index of corresponding gridcell', ncid=ncid)
+          
+          ! Define topounit info
+
+          call ncd_defvar(varname='topo1d_lon', xtype=ncd_double, dim1name=namet, &
+               long_name='topounit longitude', units='degrees_east', ncid=ncid)
+
+          call ncd_defvar(varname='topo1d_lat', xtype=ncd_double, dim1name=namet, &
+               long_name='topounit latitude', units='degrees_north', ncid=ncid)
+
+          call ncd_defvar(varname='topo1d_ixy', xtype=ncd_int, dim1name=namet, &
+               long_name='2d longitude index of corresponding topounit', ncid=ncid)
+
+          call ncd_defvar(varname='topo1d_jxy', xtype=ncd_int, dim1name=namet, &
+               long_name='2d latitude index of corresponding topounit', ncid=ncid)
+
+          call ncd_defvar(varname='topo1d_wtgcell', xtype=ncd_double, dim1name=namet, &
+               long_name='topounit weight relative to corresponding gridcell', ncid=ncid)
 
           ! Define landunit info
 
@@ -3067,6 +3086,7 @@ contains
 
        allocate(&
             rgarr(bounds%begg:bounds%endg),&
+            rtarr(bounds%begt:bounds%endt),&
             rlarr(bounds%begl:bounds%endl),&
             rcarr(bounds%begc:bounds%endc),&
             rparr(bounds%begp:bounds%endp),&
@@ -3077,6 +3097,7 @@ contains
 
        allocate(&
             igarr(bounds%begg:bounds%endg),&
+            itarr(bounds%begt:bounds%endt),&
             ilarr(bounds%begl:bounds%endl),&
             icarr(bounds%begc:bounds%endc),&
             iparr(bounds%begp:bounds%endp),stat=ier)
@@ -3096,6 +3117,26 @@ contains
          igarr(g)= (ldecomp%gdc2glo(g) - 1)/ldomain%ni + 1
        enddo
        call ncd_io(varname='grid1d_jxy', data=igarr      , dim1name=nameg, ncid=ncid, flag='write')
+       
+       ! Write topounit info
+
+       do topo = bounds%begt,bounds%endt
+         rtarr(topo) = grc_pp%londeg(top_pp%gridcell(topo))
+       enddo
+       call ncd_io(varname='topo1d_lon', data=rtarr, dim1name=namet, ncid=ncid, flag='write')
+       do topo = bounds%begt,bounds%endt
+         rtarr(topo) = grc_pp%latdeg(top_pp%gridcell(topo))
+       enddo
+       call ncd_io(varname='topo1d_lat', data=rtarr, dim1name=namet, ncid=ncid, flag='write')
+       do topo= bounds%begt,bounds%endt
+         itarr(topo) = mod(ldecomp%gdc2glo(top_pp%gridcell(topo))-1,ldomain%ni) + 1
+       enddo
+       call ncd_io(varname='ltopo1d_ixy', data=itarr, dim1name=namet, ncid=ncid, flag='write')
+       do topo = bounds%begt,bounds%endt
+         itarr(topo) = (ldecomp%gdc2glo(top_pp%gridcell(topo))-1)/ldomain%ni + 1
+       enddo
+       call ncd_io(varname='topo1d_jxy'      , data=itarr        , dim1name=namet, ncid=ncid, flag='write')
+       call ncd_io(varname='topo1d_wtgcell'  , data=top_pp%wtgcell , dim1name=namet, ncid=ncid, flag='write')
 
        ! Write landunit info
 
@@ -3186,8 +3227,8 @@ contains
        call ncd_io(varname='pfts1d_itype_lunit', data=iparr      , dim1name=namep, ncid=ncid, flag='write')
        call ncd_io(varname='pfts1d_active'   , data=veg_pp%active  , dim1name=namep, ncid=ncid, flag='write')
 
-       deallocate(rgarr,rlarr,rcarr,rparr)
-       deallocate(igarr,ilarr,icarr,iparr)
+       deallocate(rgarr,rtarr,rlarr,rcarr,rparr)
+       deallocate(igarr,itarr,ilarr,icarr,iparr)
 
     end if
 
