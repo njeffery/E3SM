@@ -569,46 +569,46 @@ contains
             sumNewFrazilIceThickness = sumNewFrazilIceThickness + newFrazilIceThickness
             sumNewThicknessWeightedSaltContent = sumNewThicknessWeightedSaltContent + newThicknessWeightedSaltContent
 
-          else
+!          else  !NJ: try frazil rises without internally melting
             ! ocean water is warm enough to melt frazil
 
             ! test to see if there is frazil to be melted
-            if (sumNewFrazilIceThickness > 0.0_RKIND) then
+!            if (sumNewFrazilIceThickness > 0.0_RKIND) then
 
               ! Frazil melting
-              meltedFrazilIceThickness = meltingEnergy / (config_frazil_heat_of_fusion * config_frazil_ice_density)
+!              meltedFrazilIceThickness = meltingEnergy / (config_frazil_heat_of_fusion * config_frazil_ice_density)
 
               ! limit melting by what there is to melt
-              meltedFrazilIceThickness = min(meltedFrazilIceThickness, sumNewFrazilIceThickness)
+!              meltedFrazilIceThickness = min(meltedFrazilIceThickness, sumNewFrazilIceThickness)
 
               ! limit melting by fraction of layer thickness
-              meltedFrazilIceThickness = min(meltedFrazilIceThickness, layerThickness(k,iCell) &
-                                       * config_frazil_fractional_thickness_limit)
+!              meltedFrazilIceThickness = min(meltedFrazilIceThickness, layerThickness(k,iCell) &
+!                                       * config_frazil_fractional_thickness_limit)
 
               ! assign some salt to the melted ice
-              meltedThicknessWeightedSaltContent = meltedFrazilIceThickness &
-                                                 * ( sumNewThicknessWeightedSaltContent / sumNewFrazilIceThickness )
+!              meltedThicknessWeightedSaltContent = meltedFrazilIceThickness &
+!                                                 * ( sumNewThicknessWeightedSaltContent / sumNewFrazilIceThickness )
 
               ! compute tendency to thickness, temperature and salinity
 
               ! layer thickness increases due to melting of frazil
               ! note -- scaling by local ocean density to mimimize surface pressure forcing errors
-              frazilLayerThicknessTendency(k,iCell) = + meltedFrazilIceThickness * config_frazil_ice_density &
-                                                    / density(k,iCell) / dt
+!              frazilLayerThicknessTendency(k,iCell) = + meltedFrazilIceThickness * config_frazil_ice_density &
+!                                                    / density(k,iCell) / dt
 
               ! salt is released into ocean with the melting frazil
-              frazilSalinityTendency(k,iCell) = + meltedThicknessWeightedSaltContent/ dt
+!              frazilSalinityTendency(k,iCell) = + meltedThicknessWeightedSaltContent/ dt
 
               ! ocean fluid temperature is cooled due to melting of frazil
-              frazilTemperatureTendency(k,iCell) = - ( meltedFrazilIceThickness * config_frazil_heat_of_fusion &
-                                                 * config_frazil_ice_density ) / (config_specific_heat_sea_water * rho_sw) &
-                                                 / dt
+!              frazilTemperatureTendency(k,iCell) = - ( meltedFrazilIceThickness * config_frazil_heat_of_fusion &
+!                                                 * config_frazil_ice_density ) / (config_specific_heat_sea_water * rho_sw) !&
+!                                                 / dt
 
               ! keep track of new frazil ice
-              sumNewThicknessWeightedSaltContent = max(0.0_RKIND,sumNewThicknessWeightedSaltContent - meltedThicknessWeightedSaltContent)
-              sumNewFrazilIceThickness = max(0.0_RKIND,sumNewFrazilIceThickness - meltedFrazilIceThickness)
+!              sumNewThicknessWeightedSaltContent = max(0.0_RKIND,sumNewThicknessWeightedSaltContent - meltedThicknessWeightedSaltContent)
+!              sumNewFrazilIceThickness = max(0.0_RKIND,sumNewFrazilIceThickness - meltedFrazilIceThickness)
 
-            endif  ! if (sumNewFrazilIceThickness > 0.0_RKIND)
+!            endif  ! if (sumNewFrazilIceThickness > 0.0_RKIND)
 
           endif  ! if (freezingEnergy < 0)
 
