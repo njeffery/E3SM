@@ -295,6 +295,8 @@ module seq_diag_mct
 
   integer :: index_o2x_Faoo_h2otemp
   integer :: index_o2x_Fioo_frazil
+  integer :: index_o2x_Fioo_frazils
+  integer :: index_o2x_Fioo_frazilh
   integer :: index_o2x_Foxo_frazil_li
   integer :: index_o2x_Fioo_q
   integer :: index_o2x_Foxo_q_li
@@ -340,6 +342,8 @@ module seq_diag_mct
   integer :: index_x2i_Faxa_rain
   integer :: index_x2i_Faxa_snow
   integer :: index_x2i_Fioo_frazil
+  integer :: index_x2i_Fioo_frazils
+  integer :: index_x2i_Fioo_frazilh
   integer :: index_x2i_Fioo_q
   integer :: index_x2i_Fixx_rofi
 
@@ -1478,6 +1482,8 @@ contains
     if (present(do_o2x)) then
        if (first_time) then
           index_o2x_Fioo_frazil  = mct_aVect_indexRA(o2x_o,'Fioo_frazil')
+          index_o2x_Fioo_frazils  = mct_aVect_indexRA(o2x_o,'Fioo_frazils')
+          index_o2x_Fioo_frazilh  = mct_aVect_indexRA(o2x_o,'Fioo_frazilh')
           index_o2x_Foxo_frazil_li= mct_aVect_indexRA(o2x_o,'Foxo_frazil_li',perrWith='quiet')
           index_o2x_Fioo_q       = mct_aVect_indexRA(o2x_o,'Fioo_q')
           index_o2x_Foxo_q_li    = mct_aVect_indexRA(o2x_o,'Foxo_q_li',perrWith='quiet')
@@ -1808,6 +1814,8 @@ contains
           index_x2i_Faxa_rain   = mct_aVect_indexRA(x2i_i,'Faxa_rain')
           index_x2i_Faxa_snow   = mct_aVect_indexRA(x2i_i,'Faxa_snow')
           index_x2i_Fioo_frazil = mct_aVect_indexRA(x2i_i,'Fioo_frazil')
+          index_x2i_Fioo_frazils = mct_aVect_indexRA(x2i_i,'Fioo_frazils')
+          index_x2i_Fioo_frazilh = mct_aVect_indexRA(x2i_i,'Fioo_frazilh')
           index_x2i_Fioo_q      = mct_aVect_indexRA(x2i_i,'Fioo_q')
           index_x2i_Fixx_rofi   = mct_aVect_indexRA(x2i_i,'Fixx_rofi')
 
