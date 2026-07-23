@@ -244,14 +244,16 @@ module ocn_tracer_sediment
 !-----------------------------------------------------------------------
 
    subroutine ocn_tracer_sediment_tend(statePool, forcingPool, meshPool, &
-                                       sedimentTracers, sedimentTend,     &
-                                       layerThickness, dt, timeLevel, err)!{{{
+                                       sedimentTracers, sedimentTend,    &
+                                       layerThickness, dt, timeLevel,    &
+                                       nCellsSolve, err) !{{{
 
       type (mpas_pool_type), intent(in) :: statePool
       type (mpas_pool_type), intent(inout) :: forcingPool
       type (mpas_pool_type), intent(in) :: meshPool
       integer, intent(in)  :: timeLevel           !< Input: time level
       real (kind=RKIND), intent(in) :: dt         !< Input: time step (s)
+      integer, intent(in) :: nCellsSolve
       integer, intent(out) :: err                 !< Output: error flag
 
       real (kind=RKIND), dimension(:,:,:), intent(in) :: &

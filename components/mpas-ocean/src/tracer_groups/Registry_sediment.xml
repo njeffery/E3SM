@@ -1,30 +1,12 @@
-	<!-- ==================================================================  -->
-	<!--  Registry_sediment.xml                                              -->
-	<!--  Sediment tracer class for MPAS-Ocean                               -->
-	<!--  Independent of BGC; supports up to 3 runtime-configurable          -->
-	<!--  sediment size classes with semi-Lagrangian PPM settling and        -->
-	<!--  critical-shear-stress erosion (CROCO/MUSTANG formulation).         -->
-	<!--  Author: Nicole Jeffery, LANL                                       -->
-	<!-- =================================================================== -->
-
 	<nml_record name="tracer_forcing_sedimentTracers">
-
-		<nml_option name="config_use_sedimentTracers" type="logical" default_value=".false."  units="unitless" 
+		<nml_option name="config_use_sedimentTracers" type="logical" default_value=".false." units="unitless"
 			description="if true, the sedimentTracers category is enabled for the run"
 			possible_values=".true. or .false."
 		/>
-		<nml_option name="config_sediment_tracer_count" type="integer" default_value="1"  units="unitless" 
+		<nml_option name="config_sediment_tracer_count" type="integer" default_value="1"  units="unitless"
 			description="Number of active sediment size classes (1 to 3). Setting to 1 with default sinking rate reproduces the toy DOCr test."
 			possible_values="1, 2, or 3"
 		/>
-
-		<!-- ---------------------------------------------------------- -->
-		<!--  Per-class sinking rates (m/s, negative = downward)         -->
-		<!--  Ref: Undzis et al.; Soulsby 1997                           -->
-		<!--  Class 1: unaggregated mud  ~0.1 mm/s                       -->
-		<!--  Class 2: aggregated mud    ~1.6 mm/s                       -->
-		<!--  Class 3: very fine sand    ~9.4 mm/s                       -->
-		<!-- ---------------------------------------------------------- -->
 		<nml_option name="config_sediment_sinking_rate_1" type="real" default_value="-0.001"
 			units="m s^{-1}"
 			description="Sinking rate for sediment class 1 (unaggregated mud)"
@@ -40,10 +22,6 @@
 			description="Sinking rate for sediment class 3 (very fine sand)"
 			possible_values="any negative real"
 		/>
-
-		<!-- ---------------------------------------------------------- -->
-		<!--  Per-class critical bed shear stress for erosion (N/m^2)   -->
-		<!-- ---------------------------------------------------------- -->
 		<nml_option name="config_sediment_critical_shear_1" type="real" default_value="0.2"
 			units="N m^{-2}"
 			description="Critical bed shear stress for erosion of sediment class 1"
@@ -59,10 +37,6 @@
 			description="Critical bed shear stress for erosion of sediment class 3"
 			possible_values="any positive real"
 		/>
-
-		<!-- ---------------------------------------------------------- -->
-		<!--  Erosion parameters (shared across classes)                 -->
-		<!-- ---------------------------------------------------------- -->
 		<nml_option name="config_sediment_particle_density" type="real" default_value="2650.0"
 			units="kg m^{-3}"
 			description="Particle density (mineral sediment/quartz default)"
@@ -78,10 +52,6 @@
 			description="Porosity of surficial seafloor sediments"
 			possible_values="0.0 to 1.0"
 		/>
-
-		<!-- ---------------------------------------------------------- -->
-		<!--  Source/coupling switches                                   -->
-		<!-- ---------------------------------------------------------- -->
 		<nml_option name="config_use_sediment_river_flux" type="logical" default_value=".false."
 			description="if true, sediment input from river runoff is applied at the surface"
 			possible_values=".true. or .false."
@@ -90,11 +60,6 @@
 			description="if true, ice-ocean sediment flux coupling is enabled"
 			possible_values=".true. or .false."
 		/>
-
-		<!-- ---------------------------------------------------------- -->
-		<!--  Standard tracer group forcing switches                     -->
-		<!--  (required by the tendency framework loop)                  -->
-		<!-- ---------------------------------------------------------- -->
 		<nml_option name="config_use_sedimentTracers_surface_bulk_forcing" type="logical" default_value=".false."
 			description="if true, surface bulk forcing from coupler is added to surfaceTracerFlux in sedimentTracers category"
 			possible_values=".true. or .false."
@@ -122,19 +87,11 @@
 
 	</nml_record>
 
-	<!-- ================================================================== -->
-	<!--  Package                                                            -->
-	<!-- ================================================================== -->
 	<packages>
 		<package name="sedimentTracersPKG"
 			description="This package includes variables required for the sediment tracer module."/>
 	</packages>
 
-	<!-- ================================================================== -->
-	<!--  State: tracer concentration arrays                                 -->
-	<!--  3 size classes; config_sediment_tracer_count controls how many    -->
-	<!--  are computed at runtime (1, 2, or 3).                             -->
-	<!-- ================================================================== -->
 	<var_struct name="state" time_levs="2">
 		<var_struct name="tracers" time_levs="2">
 			<var_array name="sedimentTracers" dimensions="nVertLevels nCells Time" type="real"
@@ -155,9 +112,6 @@
 		</var_struct>
 	</var_struct>
 
-	<!-- ================================================================== -->
-	<!--  Tendency arrays                                                    -->
-	<!-- ================================================================== -->
 	<var_struct name="tend" time_levs="1">
 		<var_struct name="tracersTend" time_levs="1">
 			<var_array name="sedimentTracersTend" type="real" dimensions="nVertLevels nCells Time"
@@ -178,12 +132,7 @@
 		</var_struct>
 	</var_struct>
 
-	<!-- ================================================================== -->
-	<!--  Forcing: surface fluxes and sediment auxiliary pool               -->
-	<!-- ================================================================== -->
 	<var_struct name="forcing" time_levs="1">
-
-		<!-- Surface flux arrays (required by the tracer tendency framework) -->
 		<var_struct name="tracersSurfaceFlux" time_levs="1">
 			<var_array name="sedimentTracersSurfaceFlux" type="real" dimensions="nCells Time"
 				packages="sedimentTracersPKG">
@@ -202,20 +151,11 @@
 			</var_array>
 		</var_struct>
 
-		<!-- ---------------------------------------------------------- -->
-		<!--  Sediment auxiliary pool                                    -->
-		<!--  Holds per-class seafloor state and diagnostic fluxes.     -->
-		<!--  sedimentBedMass* must be in restart files.                 -->
-		<!-- ---------------------------------------------------------- -->
 		<var_struct name="sedimentAuxiliary" time_levs="1" packages="sedimentTracersPKG">
-
-			<!-- Bottom shear stress at cell centers (scratch, recomputed each step) -->
 			<var name="bottomStressCellSediment" type="real" dimensions="nCells Time"
 				units="N m^{-2}"
 				description="Bottom shear stress magnitude for sediment erosion computation"
 			/>
-
-			<!-- Seafloor sediment mass (restart variable, one per class) -->
 			<var name="sedimentBedMass1" type="real" dimensions="nCells Time"
 				units="kg m^{-2}"
 				description="Accumulated sediment mass on seafloor, class 1"
@@ -228,8 +168,6 @@
 				units="kg m^{-2}"
 				description="Accumulated sediment mass on seafloor, class 3"
 			/>
-
-			<!-- Settling flux diagnostics (positive = flux into seafloor) -->
 			<var name="sedimentSettlingFlux1" type="real" dimensions="nCells Time"
 				units="kg m^{-2} s^{-1}"
 				description="Settling flux to seafloor, sediment class 1"
@@ -242,8 +180,6 @@
 				units="kg m^{-2} s^{-1}"
 				description="Settling flux to seafloor, sediment class 3"
 			/>
-
-			<!-- Erosion flux diagnostics (positive = flux into water column) -->
 			<var name="sedimentErosionFlux1" type="real" dimensions="nCells Time"
 				units="kg m^{-2} s^{-1}"
 				description="Erosion flux from seafloor, sediment class 1"
@@ -256,7 +192,5 @@
 				units="kg m^{-2} s^{-1}"
 				description="Erosion flux from seafloor, sediment class 3"
 			/>
-
 		</var_struct>
-
 	</var_struct>

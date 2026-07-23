@@ -14,8 +14,8 @@
 !> \date   06/09/25
 !> \details
 !>  This module is based on the subroutine sed_settling_tile the CROCO model
-!>  The code and tools are open source. The parts of the code inherited from 
-!>  the ROMS model are made available under the conditions of the MIT/X license, 
+!>  The code and tools are open source. The parts of the code inherited from
+!>  the ROMS model are made available under the conditions of the MIT/X license,
 !>  those inherited from the AGRIF library under the terms of the CeCILL-C license
 !>
 !=======================================================================
@@ -51,9 +51,9 @@ module ocn_sediment_settling
       !this is way too small --->
       !tau_c = 6.4e-7_RKIND,   & ! critical bottom stress N/m2 or 6.4e-6. Should be function of bed type
       tau_c = 0.2_RKIND,      & ! critical bottom stress N/m2
-      ERATE = 4.0e-5_RKIND      ! CROCO, with the erosion constant independent of 
-                                ! gamma, particle density and sinking rate 
-      
+      ERATE = 4.0e-5_RKIND      ! CROCO, with the erosion constant independent of
+                                ! gamma, particle density and sinking rate
+
    ! public method interfaces
    public :: ocn_sediment_settling_flx, &
              ocn_sediment_init, &
@@ -102,7 +102,7 @@ module ocn_sediment_settling
       !-----------------------------------------------------------------
       ! Output variables
       !-----------------------------------------------------------------
-                                            
+
       real (kind=RKIND), dimension(:), intent(inout) :: &
           workTend              ! settling tendency
 
@@ -110,15 +110,15 @@ module ocn_sediment_settling
           sedimentBottomFlux, & ! kg/m2/s
           netErosionFlux,     & ! kg/m2/s
           netSedimentStorage    ! kg/m2
-      
+
       !-----------------------------------------------------------------
       ! Input variables
       !-----------------------------------------------------------------
- 
+
       real (kind=RKIND), dimension(:), intent(in) :: &
           sedimentConc,      &
           layerThickness
-          
+
       real (kind=RKIND), intent(in) :: &
           sinkingRate, &   !m/s
           dt,    &
@@ -132,7 +132,7 @@ module ocn_sediment_settling
 
       integer ::          &
          k, m, ks, err
-      
+
       integer, dimension(:), allocatable :: &
          ksource
 
@@ -216,7 +216,7 @@ module ocn_sediment_settling
 
    call ocn_sediment_column_total(sedimentConc, layerThickness, kmin, kmax, sedCol_init)
    sedSeafloor_init = netSedimentStorage
-   totSediment = sedCol_init + netSedimentStorage 
+   totSediment = sedCol_init + netSedimentStorage
 
    do k = kmin,kmax-1
       fluxConc(k+1) = (sedConcQ(k+1)-sedConcQ(k)) * layerDepth_inv2(k)
@@ -228,7 +228,7 @@ module ocn_sediment_settling
       cff = layerThickness(m+1) + 2.0_RKIND * layerThickness(m) + layerThickness(m-1);
       cffR = cff* fluxConc(k+1)
       cffL = cff* fluxConc(k)
-      
+
    ! Apply PPM monotonicity constraint
       if (dltR*dltL .le. 0.0_RKIND) then
          dltR = 0.0_RKIND
@@ -277,7 +277,7 @@ module ocn_sediment_settling
       elseif(abs(dltR) .gt. abs(cffL)) then
          dltR=cffL
       elseif (abs(dltL) .gt. abs(cffR)) then
-	 dltL=cffR
+         dltL=cffR
       endif
       concR(k)=sedConcQ(k)+dltR
       concL(k)=sedConcQ(k)-dltL
@@ -300,7 +300,7 @@ module ocn_sediment_settling
    enddo                     ! vertical grid box which contains the departure
    do k=kmin,kmax            ! point (restricted by N);
       do ks=k,kmax-1
-	 m = kmax+kmin-ks
+         m = kmax+kmin-ks
          if (WL(k) > -vertGridLayer(m)) then
             ksource(k)=ks+1
             fluxConc(k)=fluxConc(k)+WR(ks)
@@ -318,12 +318,7 @@ module ocn_sediment_settling
    enddo
    do k=kmin,kmax
       m = kmax+kmin-k
-! MULTIPLY workTend by layerThickness
-!      workTend(m) = (fluxConc(k+1)-fluxConc(k)) * layerDepth_inv(k)/dt * layerThickness(m)
       workTend(m) = ((fluxConc(k+1)-fluxConc(k))/dt + erosion(k))
-!      sedimentConc(m) = sedConcQ(k) ...
-!	   + workTend(m) * dt /layerThickness(m)
-!
       sedConcTmp(m) = sedConcQ(k) + workTend(m) * dt / layerThickness(m)
    enddo
    fluxConc(kmin) = fluxConc(kmin) - erosion(kmin)*dt
@@ -333,7 +328,7 @@ module ocn_sediment_settling
 
    ! column conservation check
    call ocn_sediment_column_total(sedConcTmp, layerThickness, kmin, kmax, sedCol_final)
-   sedError = totSediment - sedCol_final  - netSedimentStorage 
+   sedError = totSediment - sedCol_final  - netSedimentStorage
    roundOff = MAX(totSediment*small, sedCol_final*small, abs(netSedimentStorage)*small, small)
 
    if (abs(sedError) > roundOff) then
@@ -401,17 +396,16 @@ module ocn_sediment_settling
       call mpas_pool_get_subpool(domain % blocklist % structs, 'forcing', forcingPool)
       call mpas_pool_get_subpool(forcingPool, 'ecosysAuxiliary', ecosysAuxiliary)
 
-      call mpas_pool_get_array(ecosysAuxiliary, 'sedimentBottomFlux', & 
-                                     sedimentBottomFlux)  
-      call mpas_pool_get_array(ecosysAuxiliary, 'netErosionFlux', & 
-                                     netErosionFlux)  
-      call mpas_pool_get_array(ecosysAuxiliary,  'netSedimentStorage', & 
-                                     netSedimentStorage)  
+      call mpas_pool_get_array(ecosysAuxiliary, 'sedimentBottomFlux', &
+                                     sedimentBottomFlux)
+      call mpas_pool_get_array(ecosysAuxiliary, 'netErosionFlux', &
+                                     netErosionFlux)
+      call mpas_pool_get_array(ecosysAuxiliary,  'netSedimentStorage', &
+                                     netSedimentStorage)
 
       netErosionFlux(:) = 0.0_RKIND
       sedimentBottomFlux(:) = 0.0_RKIND
       netSedimentStorage(:) = 0.0_RKIND  ! needs to go in restart
-
 
    end subroutine ocn_sediment_init!}}}
 
@@ -434,18 +428,18 @@ module ocn_sediment_settling
       !-----------------------------------------------------------------
       ! Input variables
       !-----------------------------------------------------------------
-                                            
+
       real (kind=RKIND), dimension(:), intent(in) :: &
           sedimentConc, & ! kg/m3
           layerThickness  ! m
-          
+
       integer, intent(in):: &
           kmin, kmax
 
       !-----------------------------------------------------------------
       ! Output variables
       !-----------------------------------------------------------------
-                                                                             
+
       real (kind=RKIND), intent(out) :: &
          sedColTot             ! kg/m2
 
@@ -457,7 +451,7 @@ module ocn_sediment_settling
          k
 
       sedColTot = 0.0_RKIND
-     
+
       do k = kmin,kmax
          sedColTot = sedColTot + sedimentConc(k) * layerThickness(k)
       enddo
@@ -507,7 +501,7 @@ module ocn_sediment_settling
       integer :: &
          iCell,      &! loop index for cells
          nCells
-         
+
       call mpas_timer_start('explicit bottom stress for erosion')
 
       ! Explicit bottom drag term:
@@ -525,7 +519,7 @@ module ocn_sediment_settling
 #ifdef MPAS_OPENACC
       !$acc parallel loop present(KECell, maxLevelCell, bottomStressCell)
 #else
-      !$omp do schedule(runtime)
+      !$omp parallel do schedule(runtime)
 #endif
       do iCell = 1, nCells
          ! the magnitude of the bottom drag is rho*C*u**2 = rho*C*(2*KE)
@@ -533,8 +527,7 @@ module ocn_sediment_settling
                            * 2.0_RKIND * KECell(maxLevelCell(iCell),iCell)
       end do
 #ifndef MPAS_OPENACC
-      !$omp end do
-      !$omp end parallel
+      !$omp end parallel do
 #endif
 
       call mpas_timer_stop('explicit bottom stress for erosion')

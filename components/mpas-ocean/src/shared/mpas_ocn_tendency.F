@@ -964,7 +964,7 @@ contains
                                            zMid, minLevelCell, indxTemp, &
                                            indxSalt, tracerGroupSurfaceFlux, &
                                            err)
-                                           
+ 
          endif ! ecosys tracers
 
          !
@@ -1024,7 +1024,8 @@ contains
          if ( groupName == 'sedimentTracers' ) then
             call ocn_tracer_sediment_tend(statePool, forcingPool, meshPool, &
                                           tracerGroup, tracerGroupTend,     &
-                                          layerThickness, dt, timeLevel, err)
+                                          layerThickness, dt, timeLevel,    &
+                                          nCellsOwned, err)
          endif ! sediment
 
          !
