@@ -401,13 +401,11 @@ module ocn_tracer_sediment
       ! local variables
       !-----------------------------------------------------------------
 
-      type (mpas_pool_type), pointer :: sedimentSeaIceCoupling
-
-      integer :: iCell, iClass, column
-
       ! input flux components in forcing pool
       real (kind=RKIND), dimension(:), pointer :: &
          riverRunoffFlux
+
+      integer :: iCell, iClass, column
 
       err = 0
 
@@ -415,7 +413,7 @@ module ocn_tracer_sediment
       sedimentSurfaceFlux(:,:) = 0.0_RKIND
 
       if (config_use_sediment_river_flux) then
-         call mpas_pool_get_subpool(forcingPool, 'riverRunoffFlux', riverRunoffFlux)
+         call mpas_pool_get_array(forcingPool, 'riverRunoffFlux', riverRunoffFlux)
          do iCell=1,nCellsSolve
             do iClass = 1, nSedimentClasses
                sedimentSurfaceFlux(iClass,iCell) = sedimentSurfaceFlux(iClass,iCell) + &
