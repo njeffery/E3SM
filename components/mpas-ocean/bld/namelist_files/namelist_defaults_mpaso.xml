@@ -815,7 +815,7 @@
 
 <!-- tracer_forcing_sedimentTracers -->
 <config_use_sedimentTracers>.false.</config_use_sedimentTracers>
-<config_sediment_tracer_count>1</config_sediment_tracer_count>
+<config_sediment_tracers_count>1</config_sediment_tracers_count>
 <config_sediment_sinking_rate_1>-0.001</config_sediment_sinking_rate_1>
 <config_sediment_sinking_rate_2>-0.0016</config_sediment_sinking_rate_2>
 <config_sediment_sinking_rate_3>-0.0094</config_sediment_sinking_rate_3>
