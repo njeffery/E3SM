@@ -421,7 +421,7 @@ module ocn_tracer_sediment
             end do
          end do
       end if
-      if (config_use_sedimentTracers_sea_ice_coupling) then ! placeholder for Phase 3
+      if (config_use_sediment_sea_ice_coupling) then ! placeholder for Phase 3
          do iCell=1,nCellsSolve
             do iClass = 1, nSedimentClasses
                sedimentSurfaceFlux(iClass,iCell) = sedimentSurfaceFlux(Class,iCell) + 0.0_RKIND
