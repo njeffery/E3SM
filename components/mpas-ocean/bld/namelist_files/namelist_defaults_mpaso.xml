@@ -813,6 +813,28 @@
 <config_ecosysTracers_diagnostic_fields_level5>.false.</config_ecosysTracers_diagnostic_fields_level5>
 <config_use_ecosysTracers_iron_solubility_file>.false.</config_use_ecosysTracers_iron_solubility_file>
 
+<!-- tracer_forcing_sedimentTracers -->
+<config_use_sedimentTracers>.false.</config_use_sedimentTracers>
+<config_sediment_tracer_count>1</config_sediment_tracer_count>
+<config_sediment_sinking_rate_1>-0.001</config_sediment_sinking_rate_1>
+<config_sediment_sinking_rate_2>-0.0016</config_sediment_sinking_rate_2>
+<config_sediment_sinking_rate_3>-0.0094</config_sediment_sinking_rate_3>
+<config_sediment_critical_shear_1>0.2</config_sediment_critical_shear_1>
+<config_sediment_critical_shear_2>0.2</config_sediment_critical_shear_2>
+<config_sediment_critical_shear_3>0.3</config_sediment_critical_shear_3>
+<config_sediment_particle_density>2650.0</config_sediment_particle_density>
+<config_sediment_erosion_rate>4.0e-5</config_sediment_erosion_rate>
+<config_sediment_bed_porosity>0.7</config_sediment_bed_porosity>
+<config_river_sediment_load>0.194</config_river_sediment_load>
+<config_use_sediment_river_flux>.false.</config_use_sediment_river_flux>
+<config_use_sediment_sea_ice_coupling>.false.</config_use_sediment_sea_ice_coupling>
+<config_use_sedimentTracers_surface_bulk_forcing>.false.</config_use_sedimentTracers_surface_bulk_forcing>
+<config_use_sedimentTracers_surface_restoring>.false.</config_use_sedimentTracers_surface_restoring>
+<config_use_sedimentTracers_interior_restoring>.false.</config_use_sedimentTracers_interior_restoring>
+<config_use_sedimentTracers_exponential_decay>.false.</config_use_sedimentTracers_exponential_decay>
+<config_use_sedimentTracers_idealAge_forcing>.false.</config_use_sedimentTracers_idealAge_forcing>
+<config_use_sedimentTracers_ttd_forcing>.false.</config_use_sedimentTracers_ttd_forcing>
+
 <!-- tracer_forcing_freshwaterTracers -->
 <config_use_freshwaterTracers>.false.</config_use_freshwaterTracers>
 <config_use_freshwaterTracers_surface_bulk_forcing>.true.</config_use_freshwaterTracers_surface_bulk_forcing>

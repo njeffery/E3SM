@@ -56,7 +56,6 @@ module ocn_sediment_settling
 
    ! public method interfaces
    public :: ocn_sediment_settling_flx, &
-             ocn_sediment_init, &
              ocn_compute_bottom_shear_stress
 
 !***********************************************************************
@@ -366,51 +365,6 @@ module ocn_sediment_settling
 
 !***********************************************************************
 !
-!  routine ocn_sediment_init
-!
-!> \brief   Initializes ocean sediments
-!> \author  Nicole Jeffery
-!> \date    06/12/2025
-!> \details
-!>  This routine initializes fields required for sinking tracers
-!
-!-----------------------------------------------------------------------
-
-   subroutine ocn_sediment_init(domain,err)!{{{
-
-      type (domain_type), intent(inout) :: domain !< Input/Output: domain information
-
-      integer, intent(out) :: err !< Output: error flag
-
-      type (mpas_pool_type), pointer :: forcingPool
-      type (mpas_pool_type), pointer :: ecosysAuxiliary
-
-! input flux components in ecosysAuxiliary
-      real (kind=RKIND), dimension(:), pointer :: &
-         sedimentBottomFlux,    &
-         netSedimentStorage,    &
-         netErosionFlux
-
-      err = .false.
-
-      call mpas_pool_get_subpool(domain % blocklist % structs, 'forcing', forcingPool)
-      call mpas_pool_get_subpool(forcingPool, 'ecosysAuxiliary', ecosysAuxiliary)
-
-      call mpas_pool_get_array(ecosysAuxiliary, 'sedimentBottomFlux', &
-                                     sedimentBottomFlux)
-      call mpas_pool_get_array(ecosysAuxiliary, 'netErosionFlux', &
-                                     netErosionFlux)
-      call mpas_pool_get_array(ecosysAuxiliary,  'netSedimentStorage', &
-                                     netSedimentStorage)
-
-      netErosionFlux(:) = 0.0_RKIND
-      sedimentBottomFlux(:) = 0.0_RKIND
-      netSedimentStorage(:) = 0.0_RKIND  ! needs to go in restart
-
-   end subroutine ocn_sediment_init!}}}
-
-!***********************************************************************
-!
 !  routine ocn_sediment_column_total
 !
 !> \brief   sums the total column sediments
@@ -460,7 +414,7 @@ module ocn_sediment_settling
 
 !***********************************************************************
 !
-!  routine ocn_vel_forcing_explicit_bottom_drag_tend
+!  routine ocn_compute_bottom_shear_stress
 !
 !> \brief   Computes bottom shear stress
 !> \author  Nicole Jeffery

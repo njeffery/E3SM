@@ -1241,6 +1241,31 @@ add_default($nl, 'config_use_ecosysTracers_river_inputs_from_coupler');
 add_default($nl, 'config_use_ecosysTracers_atm_dust_from_coupler');
 add_default($nl, 'config_use_ecosysTracers_iron_solubility_file');
 
+###############################################
+# Namelist group: tracer_forcing_sedimentTracers #
+###############################################
+
+add_default($nl, 'config_use_sedimentTracers');
+add_default($nl, 'config_sediment_tracers_count');
+add_default($nl, 'config_sediment_sinking_rate_1');
+add_default($nl, 'config_sediment_sinking_rate_2');
+add_default($nl, 'config_sediment_sinking_rate_3');
+add_default($nl, 'config_sediment_critical_shear_1');
+add_default($nl, 'config_sediment_critical_shear_2');
+add_default($nl, 'config_sediment_critical_shear_3');
+add_default($nl, 'config_sediment_particle_density');
+add_default($nl, 'config_sediment_erosion_rate');
+add_default($nl, 'config_sediment_bed_porosity');
+add_default($nl, 'config_river_sediment_load');
+add_default($nl, 'config_use_sediment_river_flux');
+add_default($nl, 'config_use_sediment_sea_ice_coupling');
+add_default($nl, 'config_use_sedimentTracers_surface_bulk_forcing');
+add_default($nl, 'config_use_sedimentTracers_surface_restoring');
+add_default($nl, 'config_use_sedimentTracers_interior_restoring');
+add_default($nl, 'config_use_sedimentTracers_exponential_decay');
+add_default($nl, 'config_use_sedimentTracers_idealAge_forcing');
+add_default($nl, 'config_use_sedimentTracers_ttd_forcing');
+
 ####################################################
 # Namelist group: tracer_forcing_freshwaterTracers #
 ####################################################

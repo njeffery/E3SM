@@ -4,7 +4,7 @@
 			possible_values=".true. or .false."
 		/>
 		<nml_option name="config_sediment_tracer_count" type="integer" default_value="1"  units="unitless"
-			description="Number of active sediment size classes (1 to 3). Setting to 1 with default sinking rate reproduces the toy DOCr test."
+			description="Number of active sediment size classes (1 to 3)"
 			possible_values="1, 2, or 3"
 		/>
 		<nml_option name="config_sediment_sinking_rate_1" type="real" default_value="-0.001"
@@ -51,6 +51,11 @@
 			units="unitless"
 			description="Porosity of surficial seafloor sediments"
 			possible_values="0.0 to 1.0"
+		/>
+		<nml_option name="config_river_sediment_load" type="real" default_value="0.194"
+			units="kg m^{-3}"
+			description="River sediment load, based on Arctic rivers"
+			possible_values="any positive real"
 		/>
 		<nml_option name="config_use_sediment_river_flux" type="logical" default_value=".false."
 			description="if true, sediment input from river runoff is applied at the surface"

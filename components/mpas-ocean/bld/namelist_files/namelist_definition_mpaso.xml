@@ -3327,6 +3327,167 @@ Valid values: .true. or .false.
 Default: Defined in namelist_defaults.xml
 </entry>
 
+<!-- tracer_forcing_sedimentTracers -->
+
+<entry id="config_use_sedimentTracers" type="logical"
+	category="tracer_forcing_sedimentTracers" group="tracer_forcing_sedimentTracers">
+if true, the sedimentTracers category is enabled for the run
+
+Valid values: .true. or .false.
+Default: Defined in namelist_defaults.xml
+</entry>
+
+<entry id="config_sediment_tracer_count" type="integer"
+	category="tracer_forcing_sedimentTracers" group="tracer_forcing_sedimentTracers">
+Number of active sediment size classes (1 to 3)
+
+Valid values: 1, 2, or 3
+Default: Defined in namelist_defaults.xml
+</entry>
+
+<entry id="config_sediment_sinking_rate_1" type="real"
+	category="tracer_forcing_sedimentTracers" group="tracer_forcing_sedimentTracers">
+Sinking rate for sediment class 1 (unaggregated mud)
+
+Valid values: any negative real
+Default: Defined in namelist_defaults.xml
+</entry>
+
+<entry id="config_sediment_sinking_rate_2" type="real"
+	category="tracer_forcing_sedimentTracers" group="tracer_forcing_sedimentTracers">
+Sinking rate for sediment class 2 (aggregated mud)
+
+Valid values: any negative real
+Default: Defined in namelist_defaults.xml
+</entry>
+
+<entry id="config_sediment_sinking_rate_3" type="real"
+	category="tracer_forcing_sedimentTracers" group="tracer_forcing_sedimentTracers">
+Sinking rate for sediment class 3 (very fine sand)
+
+Valid values: any negative real
+Default: Defined in namelist_defaults.xml
+</entry>
+
+<entry id="config_sediment_critical_shear_1" type="real"
+	category="tracer_forcing_sedimentTracers" group="tracer_forcing_sedimentTracers">
+Critical bed shear stress for erosion of sediment class
+
+Valid values: any positive real
+Default: Defined in namelist_defaults.xml
+</entry>
+
+<entry id="config_sediment_critical_shear_2" type="real"
+	category="tracer_forcing_sedimentTracers" group="tracer_forcing_sedimentTracers">
+Critical bed shear stress for erosion of sediment class 2
+
+Valid values: any positive real
+Default: Defined in namelist_defaults.xml
+</entry>
+
+<entry id="config_sediment_critical_shear_3" type="real"
+	category="tracer_forcing_sedimentTracers" group="tracer_forcing_sedimentTracers">
+Critical bed shear stress for erosion of sediment class 3
+
+Valid values: any positive real
+Default: Defined in namelist_defaults.xml
+</entry>
+
+<entry id="config_sediment_particle_density" type="real"
+	category="tracer_forcing_sedimentTracers" group="tracer_forcing_sedimentTracers">
+Particle density (mineral sediment/quartz default)
+
+Valid values: any positive real
+Default: Defined in namelist_defaults.xml
+</entry>
+
+<entry id="config_sediment_erosion_rate" type="real"
+	category="tracer_forcing_sedimentTracers" group="tracer_forcing_sedimentTracers">
+ERATE: erosion rate constant (CROCO MUSTANG formulation). Setting to 4.0e-5 reproduces toy test.
+
+Valid values: any positive real
+Default: Defined in namelist_defaults.xml
+</entry>
+
+<entry id="config_sediment_bed_porosity" type="real"
+	category="tracer_forcing_sedimentTracers" group="tracer_forcing_sedimentTracers">
+Porosity of surficial seafloor sediments
+
+Valid values: 0.0 to 1.0
+Default: Defined in namelist_defaults.xml
+</entry>
+
+<entry id="config_river_sediment_load" type="real"
+	category="tracer_forcing_sedimentTracers" group="tracer_forcing_sedimentTracers">
+River sediment load, based on Arctic rivers
+
+Valid values: any positive real
+Default: Defined in namelist_defaults.xml
+</entry>
+
+<entry id="config_use_sediment_river_flux" type="logical"
+	category="tracer_forcing_sedimentTracers" group="tracer_forcing_sedimentTracers">
+if true, sediment input from river runoff is applied at the surface
+
+Valid values: .true. or .false.
+Default: Defined in namelist_defaults.xml
+</entry>
+
+<entry id="config_use_sediment_sea_ice_coupling" type="logical"
+	category="tracer_forcing_sedimentTracers" group="tracer_forcing_sedimentTracers">
+if true, ice-ocean sediment flux coupling is enabled
+
+Valid values: .true. or .false.
+Default: Defined in namelist_defaults.xml
+</entry>
+
+<entry id="config_use_sedimentTracers_surface_bulk_forcing" type="logical"
+	category="tracer_forcing_sedimentTracers" group="tracer_forcing_sedimentTracers">
+if true, surface bulk forcing from coupler is added to surfaceTracerFlux in sedimentTracers category
+
+Valid values: .true. or .false.
+Default: Defined in namelist_defaults.xml
+</entry>
+
+<entry id="config_use_sedimentTracers_surface_surface_restoring" type="logical"
+	category="tracer_forcing_sedimentTracers" group="tracer_forcing_sedimentTracers">
+if true, surface restoring source is applied to tracers in sedimentTracers category
+
+Valid values: .true. or .false.
+Default: Defined in namelist_defaults.xml
+</entry>
+
+<entry id="config_use_sedimentTracers_interior_restoring" type="logical"
+	category="tracer_forcing_sedimentTracers" group="tracer_forcing_sedimentTracers">
+if true, interior restoring source is applied to tracers in sedimentTracers category
+
+Valid values: .true. or .false.
+Default: Defined in namelist_defaults.xml
+</entry>
+
+<entry id="config_use_sedimentTracers_exponential_decay" type="logical"
+	category="tracer_forcing_sedimentTracers" group="tracer_forcing_sedimentTracers">
+if true, exponential decay source is applied to tracers in sedimentTracers category
+
+Valid values: .true. or .false.
+Default: Defined in namelist_defaults.xml
+</entry>
+
+<entry id="config_use_sedimentTracers_idealAge_forcing" type="logical"
+	category="tracer_forcing_sedimentTracers" group="tracer_forcing_sedimentTracers">
+if true, idealAge forcing source is applied to tracers in sedimentTracers category
+
+Valid values: .true. or .false.
+Default: Defined in namelist_defaults.xml
+</entry>
+
+<entry id="config_use_sedimentTracers_ttd_forcing" type="logical"
+	category="tracer_forcing_sedimentTracers_idealAge_forcing" group="tracer_forcing_sedimentTracers">
+if true, transit time distribution forcing source is applied to tracers in sedimentTracers category
+
+Valid values: .true. or .false.
+Default: Defined in namelist_defaults.xml
+</entry>
 
 <!-- tracer_forcing_freshwaterTracers -->
 

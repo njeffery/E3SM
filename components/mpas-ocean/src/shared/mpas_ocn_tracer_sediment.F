@@ -30,7 +30,7 @@
 !>    config_sediment_sinking_rate_1  = -0.001
 !>    config_sediment_critical_shear_1 = 0.2
 !>    config_sediment_erosion_rate     = 4.0e-5
-!>    reproduces the toy DOCr test results exactly.
+!>    reproduces the toy DOCr test results.
 !>
 !>  References:
 !>    Colella & Woodward 1984 (PPM)
@@ -85,6 +85,7 @@ module ocn_tracer_sediment
    real (kind=RKIND) :: particleDensity   !< kg/m^3
    real (kind=RKIND) :: erosionRate       !< ERATE (kg/m^2/s)
    real (kind=RKIND) :: bedPorosity       !< dimensionless
+   real (kind=RKIND) :: riverSedimentLoad !< kg/m3
 
 !***********************************************************************
 
@@ -168,17 +169,18 @@ module ocn_tracer_sediment
 
       nSedimentClasses  = config_sediment_tracer_count
 
-      sinkingRate(1)   = config_sediment_sinking_rate_1
-      sinkingRate(2)   = config_sediment_sinking_rate_2
-      sinkingRate(3)   = config_sediment_sinking_rate_3
+      sinkingRate(1)    = config_sediment_sinking_rate_1
+      sinkingRate(2)    = config_sediment_sinking_rate_2
+      sinkingRate(3)    = config_sediment_sinking_rate_3
 
-      criticalShear(1) = config_sediment_critical_shear_1
-      criticalShear(2) = config_sediment_critical_shear_2
-      criticalShear(3) = config_sediment_critical_shear_3
+      criticalShear(1)  = config_sediment_critical_shear_1
+      criticalShear(2)  = config_sediment_critical_shear_2
+      criticalShear(3)  = config_sediment_critical_shear_3
 
-      particleDensity  = config_sediment_particle_density
-      erosionRate      = config_sediment_erosion_rate
-      bedPorosity      = config_sediment_bed_porosity
+      particleDensity   = config_sediment_particle_density
+      erosionRate       = config_sediment_erosion_rate
+      bedPorosity       = config_sediment_bed_porosity
+      riverSedimentLoad = config_river_sediment_load
 
       if (nSedimentClasses < 1 .or. nSedimentClasses > 3) then
          call mpas_log_write( &
@@ -371,34 +373,64 @@ module ocn_tracer_sediment
 !> \author  Nicole Jeffery
 !> \date    07/2026
 !> \details
-!>  Placeholder for Phase 3.  River runoff and ice-ocean sediment fluxes
+!>  Phase 2. Scale river runoff flux with fixed sediment load
+!>  Phase 3.  River runoff and ice-ocean sediment fluxes
 !>  will be computed here and accumulated into sedimentTracersSurfaceFlux.
 !
 !-----------------------------------------------------------------------
 
-   subroutine ocn_tracer_sediment_surface_flux_compute(domain, timeLevel, err)!{{{
+   subroutine ocn_tracer_sediment_surface_flux_compute(sedimentTracers, forcingPool,  &
+      nCellsSolve, sedimentSurfaceFlux, err)!{{{
 
-      type (domain_type), intent(inout) :: domain !< Input/Output: domain
-      integer, intent(in)  :: timeLevel           !< Input: time level
+      ! three dimensional arrays
+      real (kind=RKIND), dimension(:,:,:), intent(in) :: &
+         sedimentTracers           !< (nClass, nVertLevels, nCells)
+
+      ! two dimensional arrays
+      real (kind=RKIND), dimension(:,:), intent(inout) :: &
+         sedimentSurfaceFlux       !< (nClass, nCells)
+
+      ! scalars
+      integer, intent(in) :: nCellsSolve
+
+      type (mpas_pool_type), intent(inout) :: forcingPool
+
       integer, intent(out) :: err                 !< Output: error flag
 
       !-----------------------------------------------------------------
       ! local variables
       !-----------------------------------------------------------------
 
-      type (mpas_pool_type), pointer :: forcingPool
-      type (mpas_pool_type), pointer :: tracersSurfaceFluxPool
-      real (kind=RKIND), dimension(:,:), pointer :: sedimentSurfaceFlux
+      type (mpas_pool_type), pointer :: sedimentSeaIceCoupling
+
+      integer :: iCell, iClass, column
+
+      ! input flux components in forcing pool
+      real (kind=RKIND), dimension(:), pointer :: &
+         riverRunoffFlux
 
       err = 0
 
-      call mpas_pool_get_subpool(domain % blocklist % structs, 'forcing', forcingPool)
-      call mpas_pool_get_subpool(forcingPool, 'tracersSurfaceFlux', tracersSurfaceFluxPool)
-      call mpas_pool_get_array(tracersSurfaceFluxPool, 'sedimentTracersSurfaceFlux', &
-                               sedimentSurfaceFlux)
-
       ! Zero surface fluxes; Phase 3 will add river and ice-ocean contributions
       sedimentSurfaceFlux(:,:) = 0.0_RKIND
+
+      if (config_use_sediment_river_flux) then
+         call mpas_pool_get_subpool(forcingPool, 'riverRunoffFlux', riverRunoffFlux)
+         do iCell=1,nCellsSolve
+            do iClass = 1, nSedimentClasses
+               sedimentSurfaceFlux(iClass,iCell) = sedimentSurfaceFlux(iClass,iCell) + &
+               max(0.0_RKIND,riverRunoffFlux(iCell))/rho_fw * riverSedimentLoad
+            end do
+         end do
+      end if
+      if (config_use_sedimentTracers_sea_ice_coupling) then ! placeholder for Phase 3
+         do iCell=1,nCellsSolve
+            do iClass = 1, nSedimentClasses
+               sedimentSurfaceFlux(iClass,iCell) = sedimentSurfaceFlux(Class,iCell) + 0.0_RKIND
+            end do
+         end do
+
+      end if
 
    end subroutine ocn_tracer_sediment_surface_flux_compute!}}}
 

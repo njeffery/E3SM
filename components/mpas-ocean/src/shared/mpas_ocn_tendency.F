@@ -1026,6 +1026,10 @@ contains
                                           tracerGroup, tracerGroupTend,     &
                                           layerThickness, dt, timeLevel,    &
                                           nCellsOwned, err)
+
+            call ocn_tracer_sediment_surface_flux_compute(tracerGroup, forcingPool,  &
+                                           nCellsOwned, tracerGroupSurfaceFlux, &
+                                           err)
          endif ! sediment
 
          !
