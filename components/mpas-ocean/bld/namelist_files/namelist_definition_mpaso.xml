@@ -3449,7 +3449,7 @@ Valid values: .true. or .false.
 Default: Defined in namelist_defaults.xml
 </entry>
 
-<entry id="config_use_sedimentTracers_surface_surface_restoring" type="logical"
+<entry id="config_use_sedimentTracers_surface_restoring" type="logical"
 	category="tracer_forcing_sedimentTracers" group="tracer_forcing_sedimentTracers">
 if true, surface restoring source is applied to tracers in sedimentTracers category
 
