@@ -3337,7 +3337,7 @@ Valid values: .true. or .false.
 Default: Defined in namelist_defaults.xml
 </entry>
 
-<entry id="config_sediment_tracers_count" type="integer"
+<entry id="config_sediment_tracer_count" type="integer"
 	category="tracer_forcing_sedimentTracers" group="tracer_forcing_sedimentTracers">
 Number of active sediment size classes (1 to 3)
 

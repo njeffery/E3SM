@@ -89,7 +89,6 @@
 			description="if true, transit time distribution forcing source is applied to tracers in sedimentTracers category"
 			possible_values=".true. or .false."
 		/>
-
 	</nml_record>
 
 	<packages>
