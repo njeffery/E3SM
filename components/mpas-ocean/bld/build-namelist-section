@@ -650,7 +650,7 @@ add_default($nl, 'config_use_ecosysTracers_iron_solubility_file');
 ###############################################
 
 add_default($nl, 'config_use_sedimentTracers');
-add_default($nl, 'config_sediment_tracers_count');
+add_default($nl, 'config_sediment_tracer_count');
 add_default($nl, 'config_sediment_sinking_rate_1');
 add_default($nl, 'config_sediment_sinking_rate_2');
 add_default($nl, 'config_sediment_sinking_rate_3');
