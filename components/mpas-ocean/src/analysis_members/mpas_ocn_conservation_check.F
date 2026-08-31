@@ -460,13 +460,10 @@ contains
            evapTemperatureFlux, &
            seaIceTemperatureFlux, &
            icebergTemperatureFlux, &
-           accumulatedFrazilIceMassNew, &
-           accumulatedFrazilIceMassOld, &
            accumulatedFrazilIceEnergyNew, &
            accumulatedFrazilIceEnergyOld, &
-           accumulatedLandIceFrazilMassNew, &
-           accumulatedLandIceFrazilMassOld
-
+           accumulatedLandIceFrazilEnergyNew, &
+           accumulatedLandIceFrazilEnergyOld
 
       real(kind=RKIND), dimension(:,:), pointer :: &
            activeTracersSurfaceFluxRunoff, &
@@ -565,8 +562,6 @@ contains
             call mpas_pool_get_dimension(tracersSurfaceFluxPool, 'index_temperatureSurfaceFlux', index_temperature_flux)
             call mpas_pool_get_array(tracersSurfaceFluxPool, 'activeTracersSurfaceFluxRunoff', activeTracersSurfaceFluxRunoff)
             call mpas_pool_get_array(tracersSurfaceFluxPool, 'activeTracersSurfaceFluxSubglacialRunoff', activeTracersSurfaceFluxSubglacialRunoff)
-            call mpas_pool_get_array(statePool, 'accumulatedFrazilIceMass', accumulatedFrazilIceMassNew, 2)
-            call mpas_pool_get_array(statePool, 'accumulatedFrazilIceMass', accumulatedFrazilIceMassOld, 1)
             call mpas_pool_get_array(statePool, 'accumulatedFrazilIceEnergy', accumulatedFrazilIceEnergyNew, 2)
             call mpas_pool_get_array(statePool, 'accumulatedFrazilIceEnergy', accumulatedFrazilIceEnergyOld, 1)
 
@@ -601,8 +596,8 @@ contains
 
             if (config_use_frazil_ice_formation) then
                do iCell = 1, nCellsSolve
-                  sumArray(10) = sumArray(10) - areaCell(iCell) &
-                                  * (accumulatedFrazilIceEnergyNew(iCell) - accumulatedFrazilIceEnergyOld(iCell))/dt
+                  sumArray(10) = sumArray(10) + areaCell(iCell) &
+                                 * (accumulatedFrazilIceEnergyNew(iCell) - accumulatedFrazilIceEnergyOld(iCell))/dt
                enddo
             end if
 
@@ -613,11 +608,11 @@ contains
             end if
 
             if (config_use_frazil_ice_formation .and. config_frazil_under_land_ice) then
-               call mpas_pool_get_array(statePool, 'accumulatedLandIceFrazilMass', accumulatedLandIceFrazilMassOld, 1)
-               call mpas_pool_get_array(statePool, 'accumulatedLandIceFrazilMass', accumulatedLandIceFrazilMassNew, 2)
+               call mpas_pool_get_array(statePool, 'accumulatedLandIceFrazilEnergy', accumulatedLandIceFrazilEnergyOld, 1)
+               call mpas_pool_get_array(statePool, 'accumulatedLandIceFrazilEnergy', accumulatedLandIceFrazilEnergyNew, 2)
                do iCell = 1, nCellsSolve
-                  sumArray(18) = sumArray(18) - areaCell(iCell) * config_frazil_heat_of_fusion &
-                                 * (accumulatedLandIceFrazilMassNew(iCell) - accumulatedLandIceFrazilMassOld(iCell))/dt
+                  sumArray(18) = sumArray(18) + areaCell(iCell) &
+                                 * (accumulatedLandIceFrazilEnergyNew(iCell) - accumulatedLandIceFrazilEnergyOld(iCell))/dt
                enddo
             end if
 
@@ -749,7 +744,7 @@ contains
             s = 0.0_RKIND
             call mpas_log_write('HEAT FLUXES: explicit')
             call mpas_log_write('MPAS-Ocean name            W (raw sum)    coupler name    short name         W/m^2 (flux/A)')
-v=accumulatedFrazilHeatFlux          ; write(m,"('frazilMass * LHF /dt     ',es16.8,' o2x_Fioo_frazilh hfreeze         ',f16.8)") v,v/A; call mpas_log_write(m); s=s+v
+v=accumulatedFrazilHeatFlux          ; write(m,"('frazilEnergy /dt         ',es16.8,' o2x_Fioo_frazilh hfreeze         ',f16.8)") v,v/A; call mpas_log_write(m); s=s+v
 v=accumulatedSeaIceHeatFlux          ; write(m,"('seaIceHeatFlux           ',es16.8,' x2o_Fioi_melth   hmelt           ',f16.8)") v,v/A; call mpas_log_write(m); s=s+v
 v=accumulatedShortWaveHeatFlux       ; write(m,"('shortWaveHeatFlux        ',es16.8,' x2o_Foxx_swnet   hnetsw          ',f16.8)") v,v/A; call mpas_log_write(m); s=s+v
 v=accumulatedLongWaveHeatFluxDown    ; write(m,"('longWaveHeatFluxDown     ',es16.8,' x2o_Faxa_lwdn    hlwdn           ',f16.8)") v,v/A; call mpas_log_write(m); s=s+v
@@ -992,7 +987,8 @@ v=accumulatedIcebergTemperatureFlux*rho_sw*cp_sw; write(m,"('IcebergTemperatureF
             if (config_use_frazil_ice_formation) then
                do iCell = 1, nCellsSolve
                   do k = minLevelCell(iCell), maxLevelCell(iCell)
-                     sumArray(10) = sumArray(10) + areaCell(iCell) * frazilLayerThicknessTendency(k,iCell) * rho_sw
+                     sumArray(10) = sumArray(10) + areaCell(iCell) &
+                                    * (accumulatedFrazilIceMassNew(iCell) - accumulatedFrazilIceMassOld(iCell))/dt
                   enddo
                enddo
             end if
