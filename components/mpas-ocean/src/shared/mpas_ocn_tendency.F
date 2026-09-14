@@ -32,6 +32,7 @@ module ocn_tendency
    use ocn_constants
    use ocn_config
    use ocn_mesh
+   use ocn_subgrid
 
    use ocn_surface_bulk_forcing
    use ocn_surface_land_ice_fluxes
@@ -351,6 +352,9 @@ contains
       real (kind=RKIND), dimension(:,:,:), pointer, contiguous :: &
          activeTracers
 
+      real (kind=RKIND):: hCrit, hRampMin
+      real (kind=RKIND), parameter:: hRampCoef = 4.0_RKIND
+
       ! End preamble
       !-----------------------------------------------------------------
       ! Begin code
@@ -440,11 +444,17 @@ contains
       ! Compute bulk forcing surface stress
       call ocn_surface_bulk_forcing_vel( &
                                     forcingPool, sfcStress, &
-                                    sfcStressMag, err)
+                                    sfcStressMag, velocityZonal, &
+                                    velocityMeridional, normalVelocity, err)
 
       ! Add top drag to surface stress
       call ocn_surface_land_ice_fluxes_vel( &
                                        sfcStress, sfcStressMag, err)
+
+      ! Scale surface stress by wet area fraction
+      if (config_use_subgrid_wetting_drying) then
+         call ocn_subgrid_scale_sfcStress(sfcStress)
+      endif
 
       ! Add nonlinear Coriolis term and horizontal advection of
       ! momentum, formulated as grad of kinetic energy
@@ -500,6 +510,12 @@ contains
       ! vertical mixing treated implicitly in a later routine
       ! adjust total velocity tendency based on wetting/drying
 
+
+      hCrit = config_drying_min_cell_height + &
+                              config_drying_safety_height
+
+      hRampMin = config_zero_drying_velocity_ramp_hmin
+
 #ifdef MPAS_OPENACC
       !$acc parallel loop collapse(2) &
       !$acc    present(tendVel, wettingVelocityFactor)
@@ -516,6 +532,33 @@ contains
       !$omp end do
       !$omp end parallel
 #endif
+
+
+      if ( config_use_wetting_drying .AND. config_use_subgrid_wetting_drying ) then
+         k = 1
+#ifdef MPAS_OPENACC
+      !$acc parallel loop present(tendVel, layerThickEdgeFlux)
+#else
+      !$omp parallel
+      !$omp do schedule(runtime)
+#endif
+         do iEdge = 1, nEdgesAll
+            ! Handle dry/drying edges for outgoing edge fluxes
+            if ( layerThickEdgeFlux(k,iEdge) <= hCrit ) then
+               tendVel(k,iEdge) = 0.0_RKIND
+            elseif ( (layerThickEdgeFlux(k,iEdge) > hCrit) .and. &
+               (layerThickEdgeFlux(k,iEdge) <= config_zero_drying_velocity_ramp_hmax) ) then
+               ! Following O'Dea et al. (2021), if total upwinded wct is less than
+               ! 2*critical thickness, apply damping at each edge
+               tendVel(k,iEdge) = tendVel(k,iEdge) * &
+                  tanh(hRampCoef*(layerThickEdgeFlux(k,iEdge) - hRampMin)/hRampMin)
+            endif
+         enddo
+#ifndef MPAS_OPENACC
+      !$omp end do
+      !$omp end parallel
+#endif
+      endif
 
       !*** Transfer any needed data back to host and delete inputs
       !$acc exit data &
@@ -607,6 +650,7 @@ contains
          tracersPool,            &! tracer variables
          tracersTendPool,        &! tracer tendencies
          tracersSurfaceFluxPool, &! surface fluxes
+         ecosysFrazilForcingPool, & ! ecosys tracers frazil tendencies
          tracersSurfaceRestoringFieldsPool, &! surface restoring
          tracersInteriorRestoringFieldsPool,&! interior restoring
          tracersExponentialDecayFieldsPool, &! exponential decay
@@ -700,6 +744,8 @@ contains
                                                tracersTendPool)
       call mpas_pool_get_subpool(forcingPool, 'tracersSurfaceFlux', &
                                                tracersSurfaceFluxPool)
+      call mpas_pool_get_subpool(forcingPool, 'ecosysFrazilForcing', &
+                                               ecosysFrazilForcingPool)
       call mpas_pool_get_dimension(tracersPool, 'index_temperature', &
                                                  indexTemperature)
       call mpas_pool_get_dimension(tracersPool, 'index_salinity', &
@@ -1404,7 +1450,7 @@ contains
          ! Compute tracer tendency due to production/destruction of
          ! frazil ice
          call ocn_frazil_forcing_tracers(meshPool, tracersPool, &
-                     groupName, forcingPool, tracerGroupTend, err)
+                     groupName, forcingPool, tracerGroupTend, ecosysFrazilForcingPool, err)
 
 
       end if ! config use flag on

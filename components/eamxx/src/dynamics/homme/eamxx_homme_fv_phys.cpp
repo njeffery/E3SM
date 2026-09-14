@@ -9,16 +9,16 @@
 #include "GllFvRemap.hpp"
 
 // Scream includes
-#include "share/field/field_manager.hpp"
-#include "share/util/eamxx_fv_phys_rrtmgp_active_gases_workaround.hpp"
+#include "share/algorithm/eamxx_fv_phys_rrtmgp_active_gases_workaround.hpp"
+#include "share/data_managers/field_manager.hpp"
 #include "dynamics/homme/homme_dimensions.hpp"
 
 // Ekat includes
-#include "ekat/ekat_assert.hpp"
-#include "ekat/kokkos/ekat_subview_utils.hpp"
-#include "ekat/ekat_pack.hpp"
-#include "ekat/ekat_pack_kokkos.hpp"
-#include "ekat/ekat_pack_utils.hpp"
+#include <ekat_assert.hpp>
+#include <ekat_team_policy_utils.hpp>
+#include <ekat_subview_utils.hpp>
+#include <ekat_pack.hpp>
+#include <ekat_pack_utils.hpp>
 
 extern "C" void gfr_init_hxx();
 
@@ -79,8 +79,9 @@ static void copy_prev (const int ncols, const int npacks,
                        const T_t& T, const uv_t& uv,
                        const FT_t& FT, const FM_t& FM) {
   using KT = KokkosTypes<DefaultDevice>;
-  using ESU = ekat::ExeSpaceUtils<KT::ExeSpace>;
-  const auto policy = ESU::get_default_team_policy(ncols, npacks);
+  using TPF = ekat::TeamPolicyFactory<KT::ExeSpace>;
+
+  const auto policy = TPF::get_default_team_policy(ncols, npacks);
   Kokkos::parallel_for(policy, KOKKOS_LAMBDA (const KT::MemberType& team) {
     const int& icol = team.league_rank();
     Kokkos::parallel_for(Kokkos::TeamVectorRange(team, npacks),
@@ -111,7 +112,7 @@ void HommeDynamics::fv_phys_dyn_to_fv_phys (const util::TimeStamp& ts, const boo
     t.T_mid = Homme::ExecView<Real***>("T_mid_tmp", nelem, npg, npacks*N);
     t.horiz_winds = Homme::ExecView<Real****>("horiz_winds_tmp", nelem, npg, 2, npacks*N);
     // Really need just the first tracer.
-    const auto qsize = get_group_out("tracers", pgn).m_monolithic_field->get_view<Real***>().extent_int(1);
+    const auto qsize = get_group_out("tracers", pgn).monolithic_field().get_view<Real***>().extent_int(1);
     t.tracers = Homme::ExecView<Real****>("tracers_tmp", nelem, npg, qsize, npacks*N);
     remap_dyn_to_fv_phys(&t);
     assert(ncols == nelem*npg);
@@ -138,8 +139,13 @@ void HommeDynamics::fv_phys_dyn_to_fv_phys (const util::TimeStamp& ts, const boo
       auto f = get_field_out(n,pgn);
       f.get_header().get_tracking().update_time_stamp(ts);
     }
-    auto Q = get_group_out("tracers",pgn).m_monolithic_field;
-    Q->get_header().get_tracking().update_time_stamp(ts);
+    const auto& params = Homme::Context::singleton().get<Homme::SimulationParams>();
+    if (params.do_3d_turbulence) {
+      auto f = get_field_out("tke_shear_strain3d_components",pgn);
+      f.get_header().get_tracking().update_time_stamp(ts);
+    }
+    auto Q = get_group_out("tracers",pgn).monolithic_field();
+    Q.get_header().get_tracking().update_time_stamp(ts);
   }
   update_pressure(m_phys_grid);
 }
@@ -169,7 +175,7 @@ void HommeDynamics::remap_dyn_to_fv_phys (GllFvRemapTmp* t) const {
   const auto npg = m_phys_grid_pgN*m_phys_grid_pgN;
   const auto& gn = m_phys_grid->name();
   const auto nlev = get_field_out("T_mid", gn).get_view<Real**>().extent_int(1);
-  const auto nq = get_group_out("tracers").m_monolithic_field->get_view<Real***>().extent_int(1);
+  const auto nq = get_group_out("tracers").monolithic_field().get_view<Real***>().extent_int(1);
   assert(get_field_out("T_mid", gn).get_view<Real**>().extent_int(0) == nelem*npg);
   assert(get_field_out("horiz_winds", gn).get_view<Real***>().extent_int(1) == 2);
 
@@ -189,13 +195,27 @@ void HommeDynamics::remap_dyn_to_fv_phys (GllFvRemapTmp* t) const {
     t ? t->horiz_winds.data() : get_field_out("horiz_winds", gn).get_view<Real***>().data(),
     nelem, npg, 2, nlev);
   const auto q = Homme::GllFvRemap::Phys3T(
-    t ? t->tracers.data() : get_group_out("tracers", gn).m_monolithic_field->get_view<Real***>().data(),
+    t ? t->tracers.data() : get_group_out("tracers", gn).monolithic_field().get_view<Real***>().data(),
     nelem, npg, nq, nlev);
   const auto dp = Homme::GllFvRemap::Phys2T(
     get_field_out("pseudo_density", gn).get_view<Real**>().data(),
     nelem, npg, nlev);
 
-  gfr.run_dyn_to_fv_phys(time_idx, ps, phis, T, omega, uv, q, &dp);
+  const auto& params = c.get<Homme::SimulationParams>();
+  if (params.do_3d_turbulence) {
+    const auto strain3d_components_gll = Homme::GllFvRemap::CPhys3T(
+      m_helper_fields.at("shear_strain3d_components_dyn").get_view<const Real*****>().data(),
+      nelem, NGP*NGP, 6, nlev);
+    const auto strain3d_components_fv = Homme::GllFvRemap::Phys3T(
+      get_field_out("tke_shear_strain3d_components", gn).get_view<Real***>().data(),
+      nelem, npg, 6, nlev);
+    gfr.run_dyn_to_fv_phys(time_idx, ps, phis, T, omega,
+                           &strain3d_components_gll, &strain3d_components_fv,
+                           uv, q, &dp);
+  } else {
+    gfr.run_dyn_to_fv_phys(time_idx, ps, phis, T, omega,
+                           nullptr, nullptr, uv, q, &dp);
+  }
   Kokkos::fence();
 }
 
@@ -209,7 +229,7 @@ void HommeDynamics::remap_fv_phys_to_dyn () const {
   const auto npg = m_phys_grid_pgN*m_phys_grid_pgN;
   const auto& gn = m_phys_grid->name();
   const auto nlev = m_helper_fields.at("FT_phys").get_view<const Real**>().extent_int(1);
-  const auto nq = get_group_in("tracers", gn).m_monolithic_field->get_view<const Real***>().extent_int(1);
+  const auto nq = get_group_in("tracers", gn).monolithic_field().get_view<const Real***>().extent_int(1);
   assert(m_helper_fields.at("FT_phys").get_view<const Real**>().extent_int(0) == nelem*npg);
 
   const auto uv_ndim = m_helper_fields.at("FM_phys").get_view<const Real***>().extent_int(1);
@@ -222,10 +242,20 @@ void HommeDynamics::remap_fv_phys_to_dyn () const {
     m_helper_fields.at("FM_phys").get_view<const Real***>().data(),
     nelem, npg, uv_ndim, nlev);
   const auto q = Homme::GllFvRemap::CPhys3T(
-    get_group_in("tracers", gn).m_monolithic_field->get_view<const Real***>().data(),
+    get_group_in("tracers", gn).monolithic_field().get_view<const Real***>().data(),
     nelem, npg, nq, nlev);
 
-  gfr.run_fv_phys_to_dyn(time_idx, T, uv, q);
+  const auto& params = c.get<Homme::SimulationParams>();
+  if (params.do_3d_turbulence) {
+    const auto Km_phys = get_field_in("eddy_diff_mom_horiz",gn).get_view<const Real**>();
+    const auto Kh_phys = get_field_in("eddy_diff_heat_horiz",gn).get_view<const Real**>();
+    const auto Km = Homme::GllFvRemap::CPhys2T(Km_phys.data(), nelem, npg, nlev);
+    const auto Kh = Homme::GllFvRemap::CPhys2T(Kh_phys.data(), nelem, npg, nlev);
+    gfr.run_fv_phys_to_dyn(time_idx, T, uv, q, &Km, &Kh);
+  } else {
+    gfr.run_fv_phys_to_dyn(time_idx, T, uv, q);
+  }
+
   Kokkos::fence();
   gfr.run_fv_phys_to_dyn_dss();
   Kokkos::fence();
@@ -246,7 +276,7 @@ void HommeDynamics
   const auto rnc = m_cgll_grid->get_num_local_dofs();
   const auto pnc = m_phys_grid->get_num_local_dofs();
   const auto nlev = m_cgll_grid->get_num_vertical_levels();
-  constexpr int ps = SCREAM_SMALL_PACK_SIZE;
+  constexpr int ps = SCREAM_PACK_SIZE;
   for (const auto& e : trace_gases_workaround.get_active_gases()) {
     add_field<Required>(e, FieldLayout({COL,LEV},{rnc,nlev}), mol/mol, rgn, ps);
     // 'Updated' rather than just 'Computed' so that it gets written to the

@@ -2,12 +2,8 @@
 
 #include "shoc_data.hpp"
 
-#include "ekat/ekat_assert.hpp"
-#include "ekat/kokkos/ekat_kokkos_utils.hpp"
-#include "ekat/ekat_pack_kokkos.hpp"
-#include "ekat/kokkos/ekat_subview_utils.hpp"
-
-#include "share/util/eamxx_deep_copy.hpp"
+#include <ekat_team_policy_utils.hpp>
+#include <ekat_subview_utils.hpp>
 
 #include <random>
 
@@ -100,12 +96,12 @@ void adv_sgs_tke(AdvSgsTkeData& d)
 
 void eddy_diffusivities(EddyDiffusivitiesData& d)
 {
-  eddy_diffusivities_host(d.nlev, d.shcol, d.shoc_1p5tke, d.pblh, d.zt_grid, d.tabs, d.shoc_mix, d.sterm_zt, d.isotropy, d.tke, d.tkh, d.tk);
+  eddy_diffusivities_host(d.nlev, d.shcol, d.pblh, d.zt_grid, d.tabs, d.shoc_mix, d.sterm_zt, d.isotropy, d.tke, d.tkh, d.tk);
 }
 
 void shoc_length(ShocLengthData& d)
 {
-  shoc_length_host(d.shcol, d.nlev, d.nlevi, d.shoc_1p5tke, d.host_dx, d.host_dy, d.zt_grid, d.zi_grid, d.dz_zt, d.tke, d.thv, d.tk, d.brunt, d.shoc_mix);
+  shoc_length_host(d.shcol, d.nlev, d.nlevi, d.host_dx, d.host_dy, d.zt_grid, d.zi_grid, d.dz_zt, d.tke, d.thv, d.brunt, d.shoc_mix);
 }
 
 void compute_brunt_shoc_length(ComputeBruntShocLengthData& d)
@@ -120,7 +116,7 @@ void compute_l_inf_shoc_length(ComputeLInfShocLengthData& d)
 
 void compute_shoc_mix_shoc_length(ComputeShocMixShocLengthData& d)
 {
-  compute_shoc_mix_shoc_length_host(d.nlev, d.shcol, d.shoc_1p5tke, d.tke, d.brunt, d.zt_grid, d.dz_zt, d.tk, d.l_inf, d.shoc_mix);
+  compute_shoc_mix_shoc_length_host(d.nlev, d.shcol, d.tke, d.brunt, d.zt_grid, d.l_inf, d.shoc_mix);
 }
 
 void check_length_scale_shoc_length(CheckLengthScaleShocLengthData& d)
@@ -269,9 +265,9 @@ void shoc_main(ShocMainData& d)
 {
   const int npbl = shoc_init_host(d.nlev, d.pref_mid, d.nbot_shoc, d.ntop_shoc);
   d.elapsed_s = shoc_main_host(d.shcol, d.nlev, d.nlevi, d.dtime, d.nadv, npbl, d.host_dx, d.host_dy, d.thv, d.zt_grid, d.zi_grid,
-              d.pres, d.presi, d.pdel, d.wthl_sfc, d.wqw_sfc, d.uw_sfc, d.vw_sfc, d.wtracer_sfc,
+              d.pres, d.presi, d.pdel, d.wthl_sfc, d.wqw_sfc, d.uw_sfc, d.vw_sfc, d.uw_sfc_pert, d.vw_sfc_pert, d.wtracer_sfc,
               d.num_qtracers, d.w_field, d.inv_exner, d.phis, d.host_dse, d.tke, d.thetal, d.qw,
-              d.u_wind, d.v_wind, d.qtracers, d.wthv_sec, d.tkh, d.tk, d.shoc_ql, d.shoc_cldfrac, d.pblh,
+              d.u_wind, d.v_wind, d.qtracers, d.wthv_sec, d.tkh, d.tk, d.shoc_ql, d.um_pert, d.vm_pert, d.shoc_cldfrac, d.pblh,
               d.shoc_mix, d.isotropy, d.w_sec, d.thl_sec, d.qw_sec, d.qwthl_sec, d.wthl_sec, d.wqw_sec,
               d.wtke_sec, d.uw_sec, d.vw_sec, d.w3, d.wqls_sec, d.brunt, d.shoc_ql2);
 }
@@ -306,6 +302,22 @@ void compute_shoc_temperature(ComputeShocTempData& d)
   compute_shoc_temperature_host(d.shcol, d.nlev, d.thetal, d.ql, d.inv_exner, d.tabs);
 }
 
+void compute_vertical_shear_terms(ComputeVerticalShearTermsData& d)
+{
+  compute_vertical_shear_terms_host(d.nlev, d.nlevi, d.shcol,
+                                    d.dz_zi, d.u_wind, d.v_wind, d.w_field,
+                                    d.zt_grid, d.zi_grid,
+                                    d.du_dz_m, d.dv_dz_m, d.dw_dz_m);
+}
+
+void assemble_shoc_shear_strain3d(AssembleShocShearStrain3dData& d)
+{
+  assemble_shoc_shear_strain3d_host(d.shcol, d.nlev,
+                                    d.shear_strain3d_components,
+                                    d.du_dz_m, d.dv_dz_m, d.dw_dz_m,
+                                    d.shear_strain3d);
+}
+
 // end _c impls
 
 //
@@ -318,10 +330,11 @@ void calc_shoc_varorcovar_host(Int shcol, Int nlev, Int nlevi, Real tunefac,
 {
   using SHF = Functions<Real, DefaultDevice>;
 
-  using Spack      = typename SHF::Spack;
-  using view_2d    = typename SHF::view_2d<Spack>;
+  using Pack      = typename SHF::Pack;
+  using view_2d    = typename SHF::view_2d<Pack>;
   using KT         = typename SHF::KT;
   using ExeSpace   = typename KT::ExeSpace;
+  using TPF        = ekat::TeamPolicyFactory<ExeSpace>;
   using MemberType = typename SHF::MemberType;
 
   static constexpr Int num_arrays = 6;
@@ -342,8 +355,8 @@ void calc_shoc_varorcovar_host(Int shcol, Int nlev, Int nlevi, Real tunefac,
     invar2_d    (temp_d[4]),
     varorcovar_d(temp_d[5]);
 
-  const Int nk_pack = ekat::npack<Spack>(nlev);
-  const auto policy = ekat::ExeSpaceUtils<ExeSpace>::get_default_team_policy(shcol, nk_pack);
+  const Int nk_pack = ekat::npack<Pack>(nlev);
+  const auto policy = TPF::get_default_team_policy(shcol, nk_pack);
   Kokkos::parallel_for(policy, KOKKOS_LAMBDA(const MemberType& team) {
     const Int i = team.league_rank();
 
@@ -368,10 +381,11 @@ void calc_shoc_vertflux_host(Int shcol, Int nlev, Int nlevi, Real *tkh_zi,
 {
   using SHF = Functions<Real, DefaultDevice>;
 
-  using Spack      = typename SHF::Spack;
-  using view_2d    = typename SHF::view_2d<Spack>;
+  using Pack      = typename SHF::Pack;
+  using view_2d    = typename SHF::view_2d<Pack>;
   using KT         = typename SHF::KT;
   using ExeSpace   = typename KT::ExeSpace;
+  using TPF        = ekat::TeamPolicyFactory<ExeSpace>;
   using MemberType = typename SHF::MemberType;
 
   static constexpr Int num_arrays = 4;
@@ -390,8 +404,8 @@ void calc_shoc_vertflux_host(Int shcol, Int nlev, Int nlevi, Real *tkh_zi,
     invar_d   (temp_d[2]),
     vertflux_d(temp_d[3]);
 
-  const Int nk_pack = ekat::npack<Spack>(nlev);
-  const auto policy = ekat::ExeSpaceUtils<ExeSpace>::get_default_team_policy(shcol, nk_pack);
+  const Int nk_pack = ekat::npack<Pack>(nlev);
+  const auto policy = TPF::get_default_team_policy(shcol, nk_pack);
   Kokkos::parallel_for(policy, KOKKOS_LAMBDA(const MemberType& team) {
     const Int i = team.league_rank();
 
@@ -415,7 +429,7 @@ void shoc_diag_second_moments_srf_host(Int shcol, Real* wthl_sfc, Real* uw_sfc, 
   using view_1d    = typename SHOC::view_1d<Scalar>;
 
   std::vector<view_1d> temp_d(3);
-  ScreamDeepCopy::copy_to_device({wthl_sfc, uw_sfc, vw_sfc}, shcol, temp_d);
+  ekat::host_to_device({wthl_sfc, uw_sfc, vw_sfc}, shcol, temp_d);
 
   // inputs
   view_1d
@@ -443,7 +457,7 @@ void shoc_diag_second_moments_srf_host(Int shcol, Real* wthl_sfc, Real* uw_sfc, 
    });
 
   std::vector<view_1d> inout_views = {ustar2_d, wstar_d};
-  ScreamDeepCopy::copy_to_host({ustar2, wstar}, shcol, inout_views);
+  ekat::device_to_host({ustar2, wstar}, shcol, inout_views);
 }
 
 void shoc_diag_second_moments_ubycond_host(Int shcol, Real* thl_sec, Real* qw_sec, Real* wthl_sec, Real* wqw_sec, Real* qwthl_sec, Real* uw_sec, Real* vw_sec,
@@ -488,7 +502,7 @@ void shoc_diag_second_moments_ubycond_host(Int shcol, Real* thl_sec, Real* qw_se
 
   std::vector<view_1d> host_views = {thl_sec_d, qw_sec_d, qwthl_sec_d, wthl_sec_d, wqw_sec_d, uw_sec_d, vw_sec_d, wtke_sec_d};
 
-  ScreamDeepCopy::copy_to_host({thl_sec, qw_sec, qwthl_sec, wthl_sec, wqw_sec, uw_sec, vw_sec, wtke_sec}, shcol, host_views);
+  ekat::device_to_host({thl_sec, qw_sec, qwthl_sec, wthl_sec, wqw_sec, uw_sec, vw_sec, wtke_sec}, shcol, host_views);
 }
 
 void update_host_dse_host(Int shcol, Int nlev, Real* thlm, Real* shoc_ql, Real* inv_exner, Real* zt_grid,
@@ -497,11 +511,13 @@ void update_host_dse_host(Int shcol, Int nlev, Real* thlm, Real* shoc_ql, Real* 
   using SHF = Functions<Real, DefaultDevice>;
 
   using Scalar     = typename SHF::Scalar;
-  using Spack      = typename SHF::Spack;
+  using Pack      = typename SHF::Pack;
   using view_1d    = typename SHF::view_1d<Scalar>;
-  using view_2d    = typename SHF::view_2d<Spack>;
+  using view_2d    = typename SHF::view_2d<Pack>;
+  using view_3d    = typename SHF::view_3d<Pack>;
   using KT         = typename SHF::KT;
   using ExeSpace   = typename KT::ExeSpace;
+  using TPF        = ekat::TeamPolicyFactory<ExeSpace>;
   using MemberType = typename SHF::MemberType;
 
   std::vector<view_1d> temp_1d_d(1);
@@ -509,7 +525,7 @@ void update_host_dse_host(Int shcol, Int nlev, Real* thlm, Real* shoc_ql, Real* 
   std::vector<const Real*> ptr_array = {thlm,  shoc_ql, inv_exner, zt_grid, host_dse};
 
   // Sync to device
-  ScreamDeepCopy::copy_to_device({phis}, shcol, temp_1d_d);
+  ekat::host_to_device({phis}, shcol, temp_1d_d);
   ekat::host_to_device(ptr_array, shcol, nlev, temp_2d_d);
 
   view_1d phis_d(temp_1d_d[0]);
@@ -521,8 +537,8 @@ void update_host_dse_host(Int shcol, Int nlev, Real* thlm, Real* shoc_ql, Real* 
     zt_grid_d  (temp_2d_d[3]),
     host_dse_d (temp_2d_d[4]);
 
-  const Int nk_pack = ekat::npack<Spack>(nlev);
-  const auto policy = ekat::ExeSpaceUtils<ExeSpace>::get_default_team_policy(shcol, nk_pack);
+  const Int nk_pack = ekat::npack<Pack>(nlev);
+  const auto policy = TPF::get_default_team_policy(shcol, nk_pack);
   Kokkos::parallel_for(policy, KOKKOS_LAMBDA(const MemberType& team) {
     const Int i = team.league_rank();
 
@@ -549,10 +565,11 @@ void compute_diag_third_shoc_moment_host(Int shcol, Int nlev, Int nlevi, bool sh
 {
   using SHF = Functions<Real, DefaultDevice>;
 
-  using Spack      = typename SHF::Spack;
-  using view_2d    = typename SHF::view_2d<Spack>;
+  using Pack      = typename SHF::Pack;
+  using view_2d    = typename SHF::view_2d<Pack>;
   using KT         = typename SHF::KT;
   using ExeSpace   = typename KT::ExeSpace;
+  using TPF        = ekat::TeamPolicyFactory<ExeSpace>;
   using MemberType = typename SHF::MemberType;
 
   std::vector<view_2d> temp_d(11);
@@ -586,8 +603,8 @@ void compute_diag_third_shoc_moment_host(Int shcol, Int nlev, Int nlevi, bool sh
     thetal_zi_d  (temp_d[9]),
     w3_d         (temp_d[10]);
 
-  const Int nk_pack = ekat::npack<Spack>(nlev);
-  const auto policy = ekat::ExeSpaceUtils<ExeSpace>::get_default_team_policy(shcol, nk_pack);
+  const Int nk_pack = ekat::npack<Pack>(nlev);
+  const auto policy = TPF::get_default_team_policy(shcol, nk_pack);
   Kokkos::parallel_for(policy, KOKKOS_LAMBDA(const MemberType& team) {
     const Int i = team.league_rank();
 
@@ -619,10 +636,11 @@ void shoc_pblintd_init_pot_host(Int shcol, Int nlev, Real *thl, Real* ql, Real* 
                              Real *thv)
 {
   using SHOC       = Functions<Real, DefaultDevice>;
-  using Spack      = typename SHOC::Spack;
-  using view_2d    = typename SHOC::view_2d<Spack>;
+  using Pack      = typename SHOC::Pack;
+  using view_2d    = typename SHOC::view_2d<Pack>;
   using KT         = typename SHOC::KT;
   using ExeSpace   = typename KT::ExeSpace;
+  using TPF        = ekat::TeamPolicyFactory<ExeSpace>;
   using MemberType = typename SHOC::MemberType;
 
   static constexpr Int num_arrays = 3;
@@ -636,8 +654,8 @@ void shoc_pblintd_init_pot_host(Int shcol, Int nlev, Real *thl, Real* ql, Real* 
 
   view_2d thv_d("thv", shcol, nlev);
 
-  const Int nlev_pack = ekat::npack<Spack>(nlev);
-  const auto policy = ekat::ExeSpaceUtils<ExeSpace>::get_default_team_policy(shcol, nlev_pack);
+  const Int nlev_pack = ekat::npack<Pack>(nlev);
+  const auto policy = TPF::get_default_team_policy(shcol, nlev_pack);
   Kokkos::parallel_for(policy, KOKKOS_LAMBDA(const MemberType& team) {
     const Int i = team.league_rank();
 
@@ -653,25 +671,27 @@ void shoc_pblintd_init_pot_host(Int shcol, Int nlev, Real *thl, Real* ql, Real* 
   ekat::device_to_host({thv}, shcol, nlev, inout_views);
 }
 
-void compute_shoc_mix_shoc_length_host(Int nlev, Int shcol, bool shoc_1p5tke, Real* tke, Real* brunt,
-                                    Real* zt_grid, Real* dz_zt, Real* tk, Real* l_inf, Real* shoc_mix)
+void compute_shoc_mix_shoc_length_host(Int nlev, Int shcol, Real* tke, Real* brunt,
+                                    Real* zt_grid, Real* l_inf, Real* shoc_mix)
 {
   using SHF = Functions<Real, DefaultDevice>;
 
   using Scalar     = typename SHF::Scalar;
-  using Spack      = typename SHF::Spack;
+  using Pack      = typename SHF::Pack;
   using view_1d    = typename SHF::view_1d<Scalar>;
-  using view_2d    = typename SHF::view_2d<Spack>;
+  using view_2d    = typename SHF::view_2d<Pack>;
+  using view_3d    = typename SHF::view_3d<Pack>;
   using KT         = typename SHF::KT;
   using ExeSpace   = typename KT::ExeSpace;
+  using TPF        = ekat::TeamPolicyFactory<ExeSpace>;
   using MemberType = typename SHF::MemberType;
 
   std::vector<view_1d> temp_1d_d(1);
-  std::vector<view_2d> temp_2d_d(6);
-  std::vector<const Real*> ptr_array = {tke,   brunt, zt_grid, dz_zt, tk, shoc_mix};
+  std::vector<view_2d> temp_2d_d(4);
+  std::vector<const Real*> ptr_array = {tke,   brunt, zt_grid, shoc_mix};
 
   // Sync to device
-  ScreamDeepCopy::copy_to_device({l_inf}, shcol, temp_1d_d);
+  ekat::host_to_device({l_inf}, shcol, temp_1d_d);
   ekat::host_to_device(ptr_array, shcol, nlev, temp_2d_d);
 
   view_1d
@@ -681,12 +701,10 @@ void compute_shoc_mix_shoc_length_host(Int nlev, Int shcol, bool shoc_1p5tke, Re
     tke_d     (temp_2d_d[0]),
     brunt_d   (temp_2d_d[1]),
     zt_grid_d (temp_2d_d[2]),
-    dz_zt_d   (temp_2d_d[3]),
-    tk_d      (temp_2d_d[4]),
-    shoc_mix_d  (temp_2d_d[5]);
+    shoc_mix_d  (temp_2d_d[3]);
 
-  const Int nk_pack = ekat::npack<Spack>(nlev);
-  const auto policy = ekat::ExeSpaceUtils<ExeSpace>::get_default_team_policy(shcol, nk_pack);
+  const Int nk_pack = ekat::npack<Pack>(nlev);
+  const auto policy = TPF::get_default_team_policy(shcol, nk_pack);
   Kokkos::parallel_for(policy, KOKKOS_LAMBDA(const MemberType& team) {
     const Int i = team.league_rank();
 
@@ -696,12 +714,10 @@ void compute_shoc_mix_shoc_length_host(Int nlev, Int shcol, bool shoc_1p5tke, Re
     const auto brunt_s    = ekat::subview(brunt_d, i);
     const auto zt_grid_s  = ekat::subview(zt_grid_d, i);
     const auto shoc_mix_s = ekat::subview(shoc_mix_d, i);
-    const auto dz_zt_s    = ekat::subview(dz_zt_d, i);
-    const auto tk_s       = ekat::subview(tk_d, i);
 
     const Real length_fac = 0.5;
-    SHF::compute_shoc_mix_shoc_length(team, nlev, length_fac, shoc_1p5tke, tke_s, brunt_s, zt_grid_s, 
-                                      dz_zt_s, tk_s, l_inf_s, shoc_mix_s);
+    SHF::compute_shoc_mix_shoc_length(team, nlev, length_fac, tke_s, brunt_s, zt_grid_s,
+         l_inf_s, shoc_mix_s);
   });
 
   // Sync back to host
@@ -712,10 +728,11 @@ void compute_shoc_mix_shoc_length_host(Int nlev, Int shcol, bool shoc_1p5tke, Re
 void check_tke_host(Int shcol, Int nlev, Real* tke)
 {
   using SHOC       = Functions<Real, DefaultDevice>;
-  using Spack      = typename SHOC::Spack;
-  using view_2d    = typename SHOC::view_2d<Spack>;
+  using Pack      = typename SHOC::Pack;
+  using view_2d    = typename SHOC::view_2d<Pack>;
   using KT         = typename SHOC::KT;
   using ExeSpace   = typename KT::ExeSpace;
+  using TPF        = ekat::TeamPolicyFactory<ExeSpace>;
   using MemberType = typename SHOC::MemberType;
 
   std::vector<view_2d> temp_2d_d(1);
@@ -726,8 +743,8 @@ void check_tke_host(Int shcol, Int nlev, Real* tke)
   view_2d
     tke_d(temp_2d_d[0]);
 
-  const Int nk_pack = ekat::npack<Spack>(nlev);
-  const auto policy = ekat::ExeSpaceUtils<ExeSpace>::get_default_team_policy(shcol, nk_pack);
+  const Int nk_pack = ekat::npack<Pack>(nlev);
+  const auto policy = TPF::get_default_team_policy(shcol, nk_pack);
   Kokkos::parallel_for(policy, KOKKOS_LAMBDA(const MemberType& team) {
     const Int i = team.league_rank();
 
@@ -745,10 +762,11 @@ void linear_interp_host(Real* x1, Real* x2, Real* y1, Real* y2, Int km1, Int km2
 {
   using SHF = Functions<Real, DefaultDevice>;
 
-  using Spack      = typename SHF::Spack;
-  using view_2d    = typename SHF::view_2d<Spack>;
+  using Pack      = typename SHF::Pack;
+  using view_2d    = typename SHF::view_2d<Pack>;
   using KT         = typename SHF::KT;
   using ExeSpace   = typename KT::ExeSpace;
+  using TPF        = ekat::TeamPolicyFactory<ExeSpace>;
   using MemberType = typename SHF::MemberType;
 
   std::vector<view_2d> temp_2d_d(3);
@@ -765,8 +783,8 @@ void linear_interp_host(Real* x1, Real* x2, Real* y1, Real* y2, Int km1, Int km2
     y1_d(temp_2d_d[2]),
     y2_d("y2_d", ncol, km2);
 
-  const Int nk_pack = ekat::npack<Spack>(km1);
-  const auto policy = ekat::ExeSpaceUtils<ExeSpace>::get_default_team_policy(ncol, nk_pack);
+  const Int nk_pack = ekat::npack<Pack>(km1);
+  const auto policy = TPF::get_default_team_policy(ncol, nk_pack);
   Kokkos::parallel_for(policy, KOKKOS_LAMBDA(const MemberType& team) {
     const Int i = team.league_rank();
 
@@ -788,10 +806,11 @@ void clipping_diag_third_shoc_moments_host(Int nlevi, Int shcol, Real *w_sec_zi,
 {
   using SHF = Functions<Real, DefaultDevice>;
 
-  using Spack      = typename SHF::Spack;
-  using view_2d    = typename SHF::view_2d<Spack>;
+  using Pack      = typename SHF::Pack;
+  using view_2d    = typename SHF::view_2d<Pack>;
   using KT         = typename SHF::KT;
   using ExeSpace   = typename KT::ExeSpace;
+  using TPF        = ekat::TeamPolicyFactory<ExeSpace>;
   using MemberType = typename SHF::MemberType;
 
   // Sync to device
@@ -802,8 +821,8 @@ void clipping_diag_third_shoc_moments_host(Int nlevi, Int shcol, Real *w_sec_zi,
     w_sec_zi_d(temp_d[0]),
     w3_d      (temp_d[1]);
 
-  const Int nk_pack = ekat::npack<Spack>(nlevi);
-  const auto policy = ekat::ExeSpaceUtils<ExeSpace>::get_default_team_policy(shcol, nk_pack);
+  const Int nk_pack = ekat::npack<Pack>(nlevi);
+  const auto policy = TPF::get_default_team_policy(shcol, nk_pack);
   Kokkos::parallel_for(policy, KOKKOS_LAMBDA(const MemberType& team) {
     const Int i = team.league_rank();
 
@@ -825,11 +844,13 @@ void shoc_energy_integrals_host(Int shcol, Int nlev, Real *host_dse, Real *pdel,
   using SHF = Functions<Real, DefaultDevice>;
 
   using Scalar     = typename SHF::Scalar;
-  using Spack      = typename SHF::Spack;
+  using Pack      = typename SHF::Pack;
   using view_1d    = typename SHF::view_1d<Scalar>;
-  using view_2d    = typename SHF::view_2d<Spack>;
+  using view_2d    = typename SHF::view_2d<Pack>;
+  using view_3d    = typename SHF::view_3d<Pack>;
   using KT         = typename SHF::KT;
   using ExeSpace   = typename KT::ExeSpace;
+  using TPF        = ekat::TeamPolicyFactory<ExeSpace>;
   using MemberType = typename SHF::MemberType;
 
   std::vector<view_2d> temp_d(6);
@@ -854,8 +875,8 @@ void shoc_energy_integrals_host(Int shcol, Int nlev, Real *host_dse, Real *pdel,
     wv_int_d("wv_int", shcol),
     wl_int_d("wl_int", shcol);
 
-  const Int nk_pack = ekat::npack<Spack>(nlev);
-  const auto policy = ekat::ExeSpaceUtils<ExeSpace>::get_default_team_policy(shcol, nk_pack);
+  const Int nk_pack = ekat::npack<Pack>(nlev);
+  const auto policy = TPF::get_default_team_policy(shcol, nk_pack);
   Kokkos::parallel_for(policy, KOKKOS_LAMBDA(const MemberType& team) {
     const Int i = team.league_rank();
 
@@ -882,7 +903,7 @@ void shoc_energy_integrals_host(Int shcol, Int nlev, Real *host_dse, Real *pdel,
 
   // Sync back to host
   std::vector<view_1d> inout_views = {se_int_d, ke_int_d, wv_int_d, wl_int_d};
-  ScreamDeepCopy::copy_to_host({se_int,ke_int,wv_int,wl_int}, shcol, inout_views);
+  ekat::device_to_host({se_int,ke_int,wv_int,wl_int}, shcol, inout_views);
 }
 
 void diag_second_moments_lbycond_host(Int shcol, Real* wthl_sfc, Real* wqw_sfc, Real* uw_sfc, Real* vw_sfc, Real* ustar2, Real* wstar,
@@ -893,7 +914,7 @@ void diag_second_moments_lbycond_host(Int shcol, Real* wthl_sfc, Real* wqw_sfc, 
   using view_1d    = typename SHOC::view_1d<Scalar>;
 
   std::vector<view_1d> lbycond_d(6);
-  ScreamDeepCopy::copy_to_device({wthl_sfc, wqw_sfc, uw_sfc, vw_sfc, ustar2, wstar}, shcol, lbycond_d);
+  ekat::host_to_device({wthl_sfc, wqw_sfc, uw_sfc, vw_sfc, ustar2, wstar}, shcol, lbycond_d);
 
   // inputs
   view_1d wthl_d  (lbycond_d[0]),
@@ -945,7 +966,7 @@ void diag_second_moments_lbycond_host(Int shcol, Real* wthl_sfc, Real* wqw_sfc, 
   });
 
   std::vector<view_1d> host_views = {wthlo_d, wqwo_d, uwo_d, vwo_d, wtkeo_d, thlo_d, qwo_d, qwthlo_d};
-  ScreamDeepCopy::copy_to_host({wthl_sec, wqw_sec, uw_sec, vw_sec, wtke_sec, thl_sec, qw_sec, qwthl_sec}, shcol, host_views);
+  ekat::device_to_host({wthl_sec, wqw_sec, uw_sec, vw_sec, wtke_sec, thl_sec, qw_sec, qwthl_sec}, shcol, host_views);
 }
 
 void diag_second_moments_host(Int shcol, Int nlev, Int nlevi, bool shoc_1p5tke, Real* thetal, Real* qw, Real* u_wind, Real* v_wind,
@@ -954,10 +975,11 @@ void diag_second_moments_host(Int shcol, Int nlev, Int nlevi, bool shoc_1p5tke, 
           Real* wtke_sec, Real* w_sec)
 {
   using SHOC       = Functions<Real, DefaultDevice>;
-  using Spack      = typename SHOC::Spack;
-  using view_2d    = typename SHOC::view_2d<Spack>;
+  using Pack      = typename SHOC::Pack;
+  using view_2d    = typename SHOC::view_2d<Pack>;
   using KT         = typename SHOC::KT;
   using ExeSpace   = typename KT::ExeSpace;
+  using TPF        = ekat::TeamPolicyFactory<ExeSpace>;
   using MemberType = typename SHOC::MemberType;
 
   std::vector<Int> dim1_array(20, shcol);
@@ -992,15 +1014,15 @@ void diag_second_moments_host(Int shcol, Int nlev, Int nlevi, bool shoc_1p5tke, 
     dz_zi_2d    (temp_2d[18]),
     zi_grid_2d  (temp_2d[19]);
 
-  const Int nlev_packs = ekat::npack<Spack>(nlev);
-  const Int nlevi_packs = ekat::npack<Spack>(nlevi);
+  const Int nlev_packs = ekat::npack<Pack>(nlev);
+  const Int nlevi_packs = ekat::npack<Pack>(nlevi);
   view_2d w_sec_2d("w_sec", shcol, nlev_packs),
           isotropy_zi_2d("isotropy_zi", shcol, nlevi_packs),
           tkh_zi_2d("tkh_zi", shcol, nlevi_packs),
           tk_zi_2d("tk_zi", shcol, nlevi_packs);
 
-  const Int nk_pack = ekat::npack<Spack>(nlev);
-  const auto policy = ekat::ExeSpaceUtils<ExeSpace>::get_default_team_policy(shcol, nk_pack);
+  const Int nk_pack = ekat::npack<Pack>(nlev);
+  const auto policy = TPF::get_default_team_policy(shcol, nk_pack);
   Kokkos::parallel_for(policy, KOKKOS_LAMBDA(const MemberType& team) {
     const Int i = team.league_rank();
     // Hardcode runtime options for F90
@@ -1056,15 +1078,16 @@ void diag_second_shoc_moments_host(Int shcol, Int nlev, Int nlevi, bool shoc_1p5
 {
   using SHOC          = Functions<Real, DefaultDevice>;
   using Scalar        = typename SHOC::Scalar;
-  using Spack         = typename SHOC::Spack;
-  using view_2d       = typename SHOC::view_2d<Spack>;
+  using Pack         = typename SHOC::Pack;
+  using view_2d       = typename SHOC::view_2d<Pack>;
   using KT            = typename SHOC::KT;
   using ExeSpace      = typename KT::ExeSpace;
+  using TPF           = ekat::TeamPolicyFactory<ExeSpace>;
   using MemberType    = typename SHOC::MemberType;
-  using view_1d = typename SHOC::view_1d<Scalar>;
+  using view_1d       = typename SHOC::view_1d<Scalar>;
 
   std::vector<view_1d> temp_1d(4);
-  ScreamDeepCopy::copy_to_device({wthl_sfc, wqw_sfc, uw_sfc, vw_sfc}, shcol, temp_1d);
+  ekat::host_to_device({wthl_sfc, wqw_sfc, uw_sfc, vw_sfc}, shcol, temp_1d);
 
   view_1d wthl_1d  (temp_1d[0]),
           wqw_1d   (temp_1d[1]),
@@ -1107,12 +1130,12 @@ void diag_second_shoc_moments_host(Int shcol, Int nlev, Int nlevi, bool shoc_1p5
   view_1d ustar2_1d("ustar2", shcol),
                 wstar_1d("wstar", shcol);
 
-  const Int nlev_packs = ekat::npack<Spack>(nlev);
-  const Int nlevi_packs = ekat::npack<Spack>(nlevi);
-  const auto policy = ekat::ExeSpaceUtils<ExeSpace>::get_default_team_policy(shcol, nlev_packs);
+  const Int nlev_packs = ekat::npack<Pack>(nlev);
+  const Int nlevi_packs = ekat::npack<Pack>(nlevi);
+  const auto policy = TPF::get_default_team_policy(shcol, nlev_packs);
 
   // Local variable workspace
-  ekat::WorkspaceManager<Spack, KT::Device> workspace_mgr(nlevi_packs, 3, policy);
+  ekat::WorkspaceManager<Pack, KT::Device> workspace_mgr(nlevi_packs, 3, policy);
 
   Kokkos::parallel_for(policy, KOKKOS_LAMBDA(const MemberType& team) {
     const Int i = team.league_rank();
@@ -1171,10 +1194,11 @@ void compute_brunt_shoc_length_host(Int nlev, Int nlevi, Int shcol, Real* dz_zt,
 {
   using SHF = Functions<Real, DefaultDevice>;
 
-  using Spack      = typename SHF::Spack;
-  using view_2d    = typename SHF::view_2d<Spack>;
+  using Pack      = typename SHF::Pack;
+  using view_2d    = typename SHF::view_2d<Pack>;
   using KT         = typename SHF::KT;
   using ExeSpace   = typename KT::ExeSpace;
+  using TPF        = ekat::TeamPolicyFactory<ExeSpace>;
   using MemberType = typename SHF::MemberType;
 
   std::vector<view_2d> temp_d(4);
@@ -1191,8 +1215,8 @@ void compute_brunt_shoc_length_host(Int nlev, Int nlevi, Int shcol, Real* dz_zt,
     thv_zi_d(temp_d[2]),
     brunt_d (temp_d[3]);
 
-  const Int nk_pack = ekat::npack<Spack>(nlev);
-  const auto policy = ekat::ExeSpaceUtils<ExeSpace>::get_default_team_policy(shcol, nk_pack);
+  const Int nk_pack = ekat::npack<Pack>(nlev);
+  const auto policy = TPF::get_default_team_policy(shcol, nk_pack);
   Kokkos::parallel_for(policy, KOKKOS_LAMBDA(const MemberType& team) {
     const Int i = team.league_rank();
 
@@ -1215,11 +1239,13 @@ void compute_l_inf_shoc_length_host(Int nlev, Int shcol, Real *zt_grid, Real *dz
   using SHF = Functions<Real, DefaultDevice>;
 
   using Scalar     = typename SHF::Scalar;
-  using Spack      = typename SHF::Spack;
+  using Pack      = typename SHF::Pack;
   using view_1d    = typename SHF::view_1d<Scalar>;
-  using view_2d    = typename SHF::view_2d<Spack>;
+  using view_2d    = typename SHF::view_2d<Pack>;
+  using view_3d    = typename SHF::view_3d<Pack>;
   using KT         = typename SHF::KT;
   using ExeSpace   = typename KT::ExeSpace;
+  using TPF        = ekat::TeamPolicyFactory<ExeSpace>;
   using MemberType = typename SHF::MemberType;
 
   // Sync to device
@@ -1236,8 +1262,8 @@ void compute_l_inf_shoc_length_host(Int nlev, Int shcol, Real *zt_grid, Real *dz
   view_1d
     l_inf_d("l_inf", shcol);
 
-  const Int nk_pack = ekat::npack<Spack>(nlev);
-  const auto policy = ekat::ExeSpaceUtils<ExeSpace>::get_default_team_policy(shcol, nk_pack);
+  const Int nk_pack = ekat::npack<Pack>(nlev);
+  const auto policy = TPF::get_default_team_policy(shcol, nk_pack);
   Kokkos::parallel_for(policy, KOKKOS_LAMBDA(const MemberType& team) {
     const Int i = team.league_rank();
 
@@ -1254,7 +1280,7 @@ void compute_l_inf_shoc_length_host(Int nlev, Int shcol, Real *zt_grid, Real *dz
 
   // Sync back to host
   std::vector<view_1d> inout_views = {l_inf_d};
-  ScreamDeepCopy::copy_to_host({l_inf}, shcol, inout_views);
+  ekat::device_to_host({l_inf}, shcol, inout_views);
 }
 
 void check_length_scale_shoc_length_host(Int nlev, Int shcol, Real* host_dx, Real* host_dy, Real* shoc_mix)
@@ -1262,17 +1288,19 @@ void check_length_scale_shoc_length_host(Int nlev, Int shcol, Real* host_dx, Rea
   using SHF = Functions<Real, DefaultDevice>;
 
   using Scalar     = typename SHF::Scalar;
-  using Spack      = typename SHF::Spack;
+  using Pack       = typename SHF::Pack;
   using view_1d    = typename SHF::view_1d<Scalar>;
-  using view_2d    = typename SHF::view_2d<Spack>;
+  using view_2d    = typename SHF::view_2d<Pack>;
+  using view_3d    = typename SHF::view_3d<Pack>;
   using KT         = typename SHF::KT;
   using ExeSpace   = typename KT::ExeSpace;
+  using TPF        = ekat::TeamPolicyFactory<ExeSpace>;
   using MemberType = typename SHF::MemberType;
 
   // Sync to device
   std::vector<view_1d> temp_1d_d(2);
   std::vector<view_2d> temp_2d_d(1);
-  ScreamDeepCopy::copy_to_device({host_dx,host_dy}, shcol, temp_1d_d);
+  ekat::host_to_device({host_dx,host_dy}, shcol, temp_1d_d);
   ekat::host_to_device({shoc_mix}, shcol, nlev, temp_2d_d);
 
   view_1d
@@ -1282,8 +1310,8 @@ void check_length_scale_shoc_length_host(Int nlev, Int shcol, Real* host_dx, Rea
   view_2d
     shoc_mix_d(temp_2d_d[0]);
 
-  const Int nk_pack = ekat::npack<Spack>(nlev);
-  const auto policy = ekat::ExeSpaceUtils<ExeSpace>::get_default_team_policy(shcol, nk_pack);
+  const Int nk_pack = ekat::npack<Pack>(nlev);
+  const auto policy = TPF::get_default_team_policy(shcol, nk_pack);
   Kokkos::parallel_for(policy, KOKKOS_LAMBDA(const MemberType& team) {
     const Int i = team.league_rank();
 
@@ -1311,7 +1339,7 @@ void shoc_diag_obklen_host(Int shcol, Real* uw_sfc, Real* vw_sfc, Real* wthl_sfc
   std::vector<view_1d> temp_d(7);
   std::vector<const Real*> ptr_array = {uw_sfc, vw_sfc, wthl_sfc, wqw_sfc, thl_sfc,
                                         cldliq_sfc, qv_sfc};
-  ScreamDeepCopy::copy_to_device(ptr_array, shcol, temp_d);
+  ekat::host_to_device(ptr_array, shcol, temp_d);
 
   // Inputs
   view_1d
@@ -1352,14 +1380,14 @@ void shoc_diag_obklen_host(Int shcol, Real* uw_sfc, Real* vw_sfc, Real* wthl_sfc
 
   // Sync back to host
   std::vector<view_1d> inout_views = {ustar_d, kbfs_d, obklen_d};
-  ScreamDeepCopy::copy_to_host({ustar, kbfs, obklen}, shcol, inout_views);
+  ekat::device_to_host({ustar, kbfs, obklen}, shcol, inout_views);
 }
 
 void shoc_pblintd_cldcheck_host(Int shcol, Int nlev, Int nlevi, Real* zi, Real* cldn, Real* pblh) {
   using SHOC    = Functions<Real, DefaultDevice>;
-  using Spack   = typename SHOC::Spack;
+  using Pack   = typename SHOC::Pack;
   using Scalar  = typename SHOC::Scalar;
-  using view_2d = typename SHOC::view_2d<Spack>;
+  using view_2d = typename SHOC::view_2d<Pack>;
   using view_1d = typename SHOC::view_1d<Scalar>;
 
   std::vector<Int> dim1(2, shcol);
@@ -1373,14 +1401,14 @@ void shoc_pblintd_cldcheck_host(Int shcol, Int nlev, Int nlevi, Real* zi, Real* 
     cldn_2d(cldcheck_2d[1]);
 
   std::vector<view_1d> cldcheck_1d(1);
-  ScreamDeepCopy::copy_to_device({pblh}, shcol, cldcheck_1d);
+  ekat::host_to_device({pblh}, shcol, cldcheck_1d);
 
   view_1d pblh_1d (cldcheck_1d[0]);
 
   Kokkos::parallel_for("pblintd_cldcheck", shcol, KOKKOS_LAMBDA (const int& i) {
 
-    const int nlev_v_indx = (nlev-1)/Spack::n;
-    const int nlev_p_indx = (nlev-1)%Spack::n;
+    const int nlev_v_indx = (nlev-1)/Pack::n;
+    const int nlev_p_indx = (nlev-1)%Pack::n;
     Scalar zi_s   = zi_2d  (i, nlev_v_indx)[nlev_p_indx];
     Scalar cldn_s = cldn_2d(i, nlev_v_indx)[nlev_p_indx];
     Scalar pblh_s = pblh_1d(i);
@@ -1391,32 +1419,33 @@ void shoc_pblintd_cldcheck_host(Int shcol, Int nlev, Int nlevi, Real* zi, Real* 
   });
 
   std::vector<view_1d> inout_views = {pblh_1d};
-  ScreamDeepCopy::copy_to_host({pblh}, shcol, inout_views);
+  ekat::device_to_host({pblh}, shcol, inout_views);
 }
 
-void shoc_length_host(Int shcol, Int nlev, Int nlevi, bool shoc_1p5tke, Real* host_dx, Real* host_dy,
+void shoc_length_host(Int shcol, Int nlev, Int nlevi, Real* host_dx, Real* host_dy,
                    Real* zt_grid, Real* zi_grid, Real*dz_zt, Real* tke,
-                   Real* thv, Real* tk, Real*brunt, Real* shoc_mix)
+                   Real* thv, Real*brunt, Real* shoc_mix)
 {
   using SHF = Functions<Real, DefaultDevice>;
 
   using Scalar     = typename SHF::Scalar;
-  using Spack      = typename SHF::Spack;
+  using Pack      = typename SHF::Pack;
   using view_1d    = typename SHF::view_1d<Scalar>;
-  using view_2d    = typename SHF::view_2d<Spack>;
+  using view_2d    = typename SHF::view_2d<Pack>;
   using KT         = typename SHF::KT;
   using ExeSpace   = typename KT::ExeSpace;
+  using TPF        = ekat::TeamPolicyFactory<ExeSpace>;
   using MemberType = typename SHF::MemberType;
 
   std::vector<view_1d> temp_1d_d(2);
-  std::vector<view_2d> temp_2d_d(8);
-  std::vector<int> dim1_sizes(8, shcol);
+  std::vector<view_2d> temp_2d_d(7);
+  std::vector<int> dim1_sizes(7, shcol);
   std::vector<int> dim2_sizes = {nlev, nlevi, nlev, nlev,
-                                 nlev, nlev, nlev, nlev};
+                                 nlev, nlev, nlev};
   std::vector<const Real*> ptr_array = {zt_grid, zi_grid, dz_zt, tke,
-                                        thv, tk, brunt, shoc_mix};
+                                        thv, brunt, shoc_mix};
   // Sync to device
-  ScreamDeepCopy::copy_to_device({host_dx, host_dy}, shcol, temp_1d_d);
+  ekat::host_to_device({host_dx, host_dy}, shcol, temp_1d_d);
   ekat::host_to_device(ptr_array, dim1_sizes, dim2_sizes, temp_2d_d);
 
   // inputs
@@ -1430,16 +1459,15 @@ void shoc_length_host(Int shcol, Int nlev, Int nlevi, bool shoc_1p5tke, Real* ho
     dz_zt_d(temp_2d_d[2]),
     tke_d(temp_2d_d[3]),
     thv_d(temp_2d_d[4]),
-    tk_d(temp_2d_d[5]),
-    brunt_d(temp_2d_d[6]),
-    shoc_mix_d(temp_2d_d[7]);
+    brunt_d(temp_2d_d[5]),
+    shoc_mix_d(temp_2d_d[6]);
 
-  const Int nlev_packs = ekat::npack<Spack>(nlev);
-  const Int nlevi_packs = ekat::npack<Spack>(nlevi);
-  const auto policy = ekat::ExeSpaceUtils<ExeSpace>::get_default_team_policy(shcol, nlev_packs);
+  const Int nlev_packs = ekat::npack<Pack>(nlev);
+  const Int nlevi_packs = ekat::npack<Pack>(nlevi);
+  const auto policy = TPF::get_default_team_policy(shcol, nlev_packs);
 
   // Local variable workspace
-  ekat::WorkspaceManager<Spack, KT::Device> workspace_mgr(nlevi_packs, 1, policy);
+  ekat::WorkspaceManager<Pack, KT::Device> workspace_mgr(nlevi_packs, 1, policy);
 
   Kokkos::parallel_for(policy, KOKKOS_LAMBDA(const MemberType& team) {
     const Int i = team.league_rank();
@@ -1455,16 +1483,15 @@ void shoc_length_host(Int shcol, Int nlev, Int nlevi, bool shoc_1p5tke, Real* ho
     const auto dz_zt_s = ekat::subview(dz_zt_d, i);
     const auto tke_s = ekat::subview(tke_d, i);
     const auto thv_s = ekat::subview(thv_d, i);
-    const auto tk_s = ekat::subview(tk_d, i);
     const auto brunt_s = ekat::subview(brunt_d, i);
     const auto shoc_mix_s = ekat::subview(shoc_mix_d, i);
 
     // Hardcode runtime option for F90 tests.
     const Scalar length_fac = 0.5;
-    SHF::shoc_length(team,nlev,nlevi,length_fac,shoc_1p5tke,
+    SHF::shoc_length(team,nlev,nlevi,length_fac,
                      host_dx_s,host_dy_s,
                      zt_grid_s,zi_grid_s,dz_zt_s,tke_s,
-                     thv_s,tk_s,workspace,brunt_s,shoc_mix_s);
+                     thv_s,workspace,brunt_s,shoc_mix_s);
   });
 
   // Sync back to host
@@ -1481,11 +1508,12 @@ void shoc_energy_fixer_host(Int shcol, Int nlev, Int nlevi, Real dtime, Int nadv
   using SHF = Functions<Real, DefaultDevice>;
 
   using Scalar     = typename SHF::Scalar;
-  using Spack      = typename SHF::Spack;
+  using Pack      = typename SHF::Pack;
   using view_1d    = typename SHF::view_1d<Scalar>;
-  using view_2d    = typename SHF::view_2d<Spack>;
+  using view_2d    = typename SHF::view_2d<Pack>;
   using KT         = typename SHF::KT;
   using ExeSpace   = typename KT::ExeSpace;
+  using TPF        = ekat::TeamPolicyFactory<ExeSpace>;
   using MemberType = typename SHF::MemberType;
 
   std::vector<view_1d> temp_1d_d(10);
@@ -1499,7 +1527,7 @@ void shoc_energy_fixer_host(Int shcol, Int nlev, Int nlevi, Real dtime, Int nadv
                                            rho_zt,  tke,     host_dse};
 
   // Sync to device
-  ScreamDeepCopy::copy_to_device(ptr_array_1d, shcol, temp_1d_d);
+  ekat::host_to_device(ptr_array_1d, shcol, temp_1d_d);
   ekat::host_to_device(ptr_array_2d, dim1_sizes, dim2_sizes, temp_2d_d);
 
   view_1d
@@ -1523,12 +1551,12 @@ void shoc_energy_fixer_host(Int shcol, Int nlev, Int nlevi, Real dtime, Int nadv
     host_dse_d(temp_2d_d[5]);
 
 
-  const Int nlev_packs = ekat::npack<Spack>(nlev);
-  const Int nlevi_packs = ekat::npack<Spack>(nlevi);
-  const auto policy = ekat::ExeSpaceUtils<ExeSpace>::get_default_team_policy(shcol, nlev_packs);
+  const Int nlev_packs = ekat::npack<Pack>(nlev);
+  const Int nlevi_packs = ekat::npack<Pack>(nlevi);
+  const auto policy = TPF::get_default_team_policy(shcol, nlev_packs);
 
   // Local variable workspace
-  ekat::WorkspaceManager<Spack, KT::Device> workspace_mgr(nlevi_packs, 1, policy);
+  ekat::WorkspaceManager<Pack, KT::Device> workspace_mgr(nlevi_packs, 1, policy);
 
   Kokkos::parallel_for(policy, KOKKOS_LAMBDA(const MemberType& team) {
     const Int i = team.league_rank();
@@ -1567,10 +1595,11 @@ void compute_shoc_vapor_host(Int shcol, Int nlev, Real* qw, Real* ql, Real* qv)
 {
   using SHF = Functions<Real, DefaultDevice>;
 
-  using Spack      = typename SHF::Spack;
-  using view_2d    = typename SHF::view_2d<Spack>;
+  using Pack      = typename SHF::Pack;
+  using view_2d    = typename SHF::view_2d<Pack>;
   using KT         = typename SHF::KT;
   using ExeSpace   = typename KT::ExeSpace;
+  using TPF        = ekat::TeamPolicyFactory<ExeSpace>;
   using MemberType = typename SHF::MemberType;
 
   static constexpr Int num_arrays = 3;
@@ -1585,8 +1614,8 @@ void compute_shoc_vapor_host(Int shcol, Int nlev, Real* qw, Real* ql, Real* qv)
     ql_d(temp_d[1]),
     qv_d(temp_d[2]);
 
-  const Int nk_pack = ekat::npack<Spack>(nlev);
-  const auto policy = ekat::ExeSpaceUtils<ExeSpace>::get_default_team_policy(shcol, nk_pack);
+  const Int nk_pack = ekat::npack<Pack>(nlev);
+  const auto policy = TPF::get_default_team_policy(shcol, nk_pack);
   Kokkos::parallel_for(policy, KOKKOS_LAMBDA(const MemberType& team) {
     const Int i = team.league_rank();
 
@@ -1611,12 +1640,13 @@ void update_prognostics_implicit_host(Int shcol, Int nlev, Int nlevi, Int num_tr
   using SHF = Functions<Real, DefaultDevice>;
 
   using Scalar     = typename SHF::Scalar;
-  using Spack      = typename SHF::Spack;
+  using Pack      = typename SHF::Pack;
   using view_1d    = typename SHF::view_1d<Scalar>;
-  using view_2d    = typename SHF::view_2d<Spack>;
-  using view_3d    = typename SHF::view_3d<Spack>;
+  using view_2d    = typename SHF::view_2d<Pack>;
+  using view_3d    = typename SHF::view_3d<Pack>;
   using KT         = typename SHF::KT;
   using ExeSpace   = typename KT::ExeSpace;
+  using TPF        = ekat::TeamPolicyFactory<ExeSpace>;
   using MemberType = typename SHF::MemberType;
 
   static constexpr Int num_2d_arrays = 13;
@@ -1634,7 +1664,7 @@ void update_prognostics_implicit_host(Int shcol, Int nlev, Int nlevi, Int num_tr
                                         tke,   u_wind, v_wind};
 
   // Sync to device
-  ScreamDeepCopy::copy_to_device({uw_sfc, vw_sfc, wthl_sfc, wqw_sfc}, shcol, temp_1d_d);
+  ekat::host_to_device({uw_sfc, vw_sfc, wthl_sfc, wqw_sfc}, shcol, temp_1d_d);
   ekat::host_to_device(ptr_array, dim1_sizes, dim2_sizes, temp_2d_d);
   ekat::host_to_device({tracer}, shcol, nlev, num_tracer, temp_3d_d);
 
@@ -1663,9 +1693,9 @@ void update_prognostics_implicit_host(Int shcol, Int nlev, Int nlevi, Int num_tr
     qtracers_f90_d(temp_3d_d[0]);
 
   // Local variables
-  const Int nlev_packs = ekat::npack<Spack>(nlev);
-  const Int nlevi_packs = ekat::npack<Spack>(nlevi);
-  const auto policy = ekat::ExeSpaceUtils<ExeSpace>::get_default_team_policy(shcol, nlev_packs);
+  const Int nlev_packs = ekat::npack<Pack>(nlev);
+  const Int nlevi_packs = ekat::npack<Pack>(nlevi);
+  const auto policy = TPF::get_default_team_policy(shcol, nlev_packs);
 
   // CXX version of shoc qtracers is the transpose of the fortran version.
   view_3d qtracers_cxx_d("",shcol,num_tracer,nlev_packs);
@@ -1684,10 +1714,16 @@ void update_prognostics_implicit_host(Int shcol, Int nlev, Int nlevi, Int num_tr
   });
 
   // Local variable workspace
-  const int n_wind_slots = ekat::npack<Spack>(2)*Spack::n;
-  const int n_trac_slots = ekat::npack<Spack>(num_tracer+3)*Spack::n;
-  const int tmp_var_size = 8+n_wind_slots+n_trac_slots;
-  ekat::WorkspaceManager<Spack, KT::Device> workspace_mgr(nlevi_packs, tmp_var_size, policy);
+  const int n_wind_slots = ekat::npack<Pack>(2)*Pack::n;
+  const int n_trac_slots = ekat::npack<Pack>(num_tracer+3)*Pack::n;
+  const int tmp_var_size = 8+2*n_wind_slots+n_trac_slots;
+  ekat::WorkspaceManager<Pack, KT::Device> workspace_mgr(nlevi_packs, tmp_var_size, policy);
+
+  // Zero-initialized pert wind views (no pert wind data in this parity test)
+  view_2d um_pert_d("um_pert", shcol, nlev_packs);
+  view_2d vm_pert_d("vm_pert", shcol, nlev_packs);
+  Kokkos::deep_copy(um_pert_d, Pack(0));
+  Kokkos::deep_copy(vm_pert_d, Pack(0));
 
   Kokkos::parallel_for(policy, KOKKOS_LAMBDA(const MemberType& team) {
     const Int i = team.league_rank();
@@ -1713,13 +1749,16 @@ void update_prognostics_implicit_host(Int shcol, Int nlev, Int nlevi, Int num_tr
     const auto v_wind_s = ekat::subview(v_wind_d, i);
     const auto tke_s = ekat::subview(tke_d, i);
     const auto tracer_s = Kokkos::subview(qtracers_cxx_d, i, Kokkos::ALL(), Kokkos::ALL());
+    const auto um_pert_s = ekat::subview(um_pert_d, i);
+    const auto vm_pert_s = ekat::subview(vm_pert_d, i);
 
     SHF::update_prognostics_implicit(team, nlev, nlevi, num_tracer, dtime,
                                      dz_zt_s, dz_zi_s, rho_zt_s, zt_grid_s,
                                      zi_grid_s, tk_s, tkh_s, uw_sfc_s, vw_sfc_s,
                                      wthl_sfc_s, wqw_sfc_s, wtracer_sfc_s,
                                      workspace,
-                                     thetal_s, qw_s, tracer_s, tke_s, u_wind_s, v_wind_s);
+                                     thetal_s, qw_s, tracer_s, tke_s, u_wind_s, v_wind_s,
+                                     Scalar(0), Scalar(0), um_pert_s, vm_pert_s);
   });
 
   // Transpose tracers
@@ -1747,10 +1786,11 @@ void diag_third_shoc_moments_host(Int shcol, Int nlev, Int nlevi, bool shoc_1p5t
 {
   using SHF = Functions<Real, DefaultDevice>;
 
-  using Spack      = typename SHF::Spack;
-  using view_2d    = typename SHF::view_2d<Spack>;
+  using Pack      = typename SHF::Pack;
+  using view_2d    = typename SHF::view_2d<Pack>;
   using KT         = typename SHF::KT;
   using ExeSpace   = typename KT::ExeSpace;
+  using TPF        = ekat::TeamPolicyFactory<ExeSpace>;
   using MemberType = typename SHF::MemberType;
 
   std::vector<view_2d> temp_d(12);
@@ -1780,12 +1820,12 @@ void diag_third_shoc_moments_host(Int shcol, Int nlev, Int nlevi, bool shoc_1p5t
     w3_d(temp_d[11]);
 
   // Local variables
-  const Int nlev_packs = ekat::npack<Spack>(nlev);
-  const Int nlevi_packs = ekat::npack<Spack>(nlevi);
-  const auto policy = ekat::ExeSpaceUtils<ExeSpace>::get_default_team_policy(shcol, nlev_packs);
+  const Int nlev_packs = ekat::npack<Pack>(nlev);
+  const Int nlevi_packs = ekat::npack<Pack>(nlevi);
+  const auto policy = TPF::get_default_team_policy(shcol, nlev_packs);
 
   // Local variable workspace
-  ekat::WorkspaceManager<Spack, KT::Device> workspace_mgr(nlevi_packs, 4, policy);
+  ekat::WorkspaceManager<Pack, KT::Device> workspace_mgr(nlevi_packs, 4, policy);
 
   Kokkos::parallel_for(policy, KOKKOS_LAMBDA(const MemberType& team) {
     const Int i = team.league_rank();
@@ -1824,10 +1864,11 @@ void adv_sgs_tke_host(Int nlev, Int shcol, Real dtime, bool shoc_1p5tke, Real* s
 {
   using SHF = Functions<Real, DefaultDevice>;
 
-  using Spack      = typename SHF::Spack;
-  using view_2d    = typename SHF::view_2d<Spack>;
+  using Pack      = typename SHF::Pack;
+  using view_2d    = typename SHF::view_2d<Pack>;
   using KT         = typename SHF::KT;
   using ExeSpace   = typename KT::ExeSpace;
+  using TPF        = ekat::TeamPolicyFactory<ExeSpace>;
   using MemberType = typename SHF::MemberType;
 
   static constexpr Int num_arrays = 7;
@@ -1849,8 +1890,10 @@ void adv_sgs_tke_host(Int nlev, Int shcol, Real dtime, bool shoc_1p5tke, Real* s
     tke_d      (temp_d[4]), //inout
     a_diss_d   (temp_d[5]); //out
 
-  const Int nk_pack = ekat::npack<Spack>(nlev);
-  const auto policy = ekat::ExeSpaceUtils<ExeSpace>::get_default_team_policy(shcol, nk_pack);
+  const Int nk_pack = ekat::npack<Pack>(nlev);
+  view_2d shear_strain3d_d("shear_strain3d_d", shcol, nk_pack);
+  Kokkos::deep_copy(shear_strain3d_d, 0);
+  const auto policy = TPF::get_default_team_policy(shcol, nk_pack);
 
   Kokkos::parallel_for(policy, KOKKOS_LAMBDA(const MemberType& team) {
       const Int i = team.league_rank();
@@ -1861,10 +1904,14 @@ void adv_sgs_tke_host(Int nlev, Int shcol, Real dtime, bool shoc_1p5tke, Real* s
       const auto sterm_zt_s = ekat::subview(sterm_zt_d ,i);
       const auto tk_s       = ekat::subview(tk_d ,i);
       const auto brunt_s    = ekat::subview(brunt_d, i);
+      const auto shear_strain3d_s = ekat::subview(shear_strain3d_d, i);
       const auto tke_s      = ekat::subview(tke_d ,i);
       const auto a_diss_s   = ekat::subview(a_diss_d ,i);
+      const bool do_3d_turb = false;
 
-      SHF::adv_sgs_tke(team, nlev, dtime, shoc_1p5tke, shoc_mix_s, wthv_sec_s, sterm_zt_s, tk_s, brunt_s, tke_s, a_diss_s);
+      SHF::adv_sgs_tke(team, nlev, dtime, shoc_1p5tke, do_3d_turb,
+                       shoc_mix_s, wthv_sec_s, sterm_zt_s, tk_s, brunt_s,
+                       shear_strain3d_s, tke_s, a_diss_s);
     });
 
   // Sync back to host
@@ -1879,10 +1926,11 @@ void shoc_assumed_pdf_host(Int shcol, Int nlev, Int nlevi, Real* thetal, Real* q
 {
   using SHF = Functions<Real, DefaultDevice>;
 
-  using Spack      = typename SHF::Spack;
-  using view_2d    = typename SHF::view_2d<Spack>;
+  using Pack      = typename SHF::Pack;
+  using view_2d    = typename SHF::view_2d<Pack>;
   using KT         = typename SHF::KT;
   using ExeSpace   = typename KT::ExeSpace;
+  using TPF        = ekat::TeamPolicyFactory<ExeSpace>;
   using MemberType = typename SHF::MemberType;
 
   static constexpr Int num_arrays = 18;
@@ -1919,11 +1967,11 @@ void shoc_assumed_pdf_host(Int shcol, Int nlev, Int nlevi, Real* thetal, Real* q
     wthv_sec_d(temp_d[16]),
     shoc_ql2_d(temp_d[17]);
 
-  const Int nlev_packs = ekat::npack<Spack>(nlev);
-  const auto policy = ekat::ExeSpaceUtils<ExeSpace>::get_default_team_policy(shcol, nlev_packs);
+  const Int nlev_packs = ekat::npack<Pack>(nlev);
+  const auto policy = TPF::get_default_team_policy(shcol, nlev_packs);
 
   // Local variable workspace
-  ekat::WorkspaceManager<Spack, KT::Device> workspace_mgr(nlev_packs, 6, policy);
+  ekat::WorkspaceManager<Pack, KT::Device> workspace_mgr(nlev_packs, 6, policy);
 
   Kokkos::parallel_for(policy, KOKKOS_LAMBDA(const MemberType& team) {
     const Int i = team.league_rank();
@@ -1972,10 +2020,11 @@ void compute_shr_prod_host(Int nlevi, Int nlev, Int shcol, Real* dz_zi, Real* u_
 {
   using SHF = Functions<Real, DefaultDevice>;
 
-  using Spack      = typename SHF::Spack;
-  using view_2d    = typename SHF::view_2d<Spack>;
+  using Pack      = typename SHF::Pack;
+  using view_2d    = typename SHF::view_2d<Pack>;
   using KT         = typename SHF::KT;
   using ExeSpace   = typename KT::ExeSpace;
+  using TPF        = ekat::TeamPolicyFactory<ExeSpace>;
   using MemberType = typename SHF::MemberType;
 
   static constexpr Int num_arrays = 4;
@@ -1996,8 +2045,8 @@ void compute_shr_prod_host(Int nlevi, Int nlev, Int shcol, Real* dz_zi, Real* u_
     //output
     sterm_d (temp_d[3]);
 
-  const Int nk_pack = ekat::npack<Spack>(nlev);
-  const auto policy = ekat::ExeSpaceUtils<ExeSpace>::get_default_team_policy(shcol, nk_pack);
+  const Int nk_pack = ekat::npack<Pack>(nlev);
+  const auto policy = TPF::get_default_team_policy(shcol, nk_pack);
 
   Kokkos::parallel_for(policy, KOKKOS_LAMBDA(const MemberType& team) {
       const Int i = team.league_rank();
@@ -2017,14 +2066,138 @@ void compute_shr_prod_host(Int nlevi, Int nlev, Int shcol, Real* dz_zi, Real* u_
   ekat::device_to_host({sterm}, shcol, nlevi, inout_views);
 }
 
+void compute_vertical_shear_terms_host(Int nlev, Int nlevi, Int shcol,
+                                       Real* dz_zi, Real* u_wind, Real* v_wind, Real* w_field,
+                                       Real* zt_grid, Real* zi_grid,
+                                       Real* du_dz_m, Real* dv_dz_m, Real* dw_dz_m)
+{
+  using SHF = Functions<Real, DefaultDevice>;
+
+  using Pack      = typename SHF::Pack;
+  using view_2d   = typename SHF::view_2d<Pack>;
+  using KT        = typename SHF::KT;
+  using ExeSpace  = typename KT::ExeSpace;
+  using TPF       = ekat::TeamPolicyFactory<ExeSpace>;
+  using MemberType = typename SHF::MemberType;
+
+  static constexpr Int num_arrays = 9;
+
+  std::vector<view_2d> temp_d(num_arrays);
+  std::vector<Int> dim1_sizes(num_arrays, shcol);
+  std::vector<Int> dim2_sizes = {nlevi, nlev, nlev, nlev, nlev, nlevi, nlev, nlev, nlev};
+  std::vector<const Real*> ptr_array = {dz_zi, u_wind, v_wind, w_field, zt_grid, zi_grid,
+                                        du_dz_m, dv_dz_m, dw_dz_m};
+
+  ekat::host_to_device(ptr_array, dim1_sizes, dim2_sizes, temp_d);
+
+  view_2d
+    dz_zi_d (temp_d[0]),
+    u_wind_d(temp_d[1]),
+    v_wind_d(temp_d[2]),
+    w_field_d(temp_d[3]),
+    zt_grid_d(temp_d[4]),
+    zi_grid_d(temp_d[5]),
+    du_dz_m_d(temp_d[6]),
+    dv_dz_m_d(temp_d[7]),
+    dw_dz_m_d(temp_d[8]);
+
+  const Int nlev_packs = ekat::npack<Pack>(nlev);
+  const Int nlevi_packs = ekat::npack<Pack>(nlevi);
+  const auto policy = TPF::get_default_team_policy(shcol, nlev_packs);
+
+  ekat::WorkspaceManager<Pack, KT::Device> workspace_mgr(nlevi_packs, 3, policy);
+
+  Kokkos::parallel_for(policy, KOKKOS_LAMBDA(const MemberType& team) {
+    const Int i = team.league_rank();
+
+    auto workspace = workspace_mgr.get_workspace(team);
+
+    const auto dz_zi_s = ekat::subview(dz_zi_d, i);
+    const auto u_wind_s = ekat::subview(u_wind_d, i);
+    const auto v_wind_s = ekat::subview(v_wind_d, i);
+    const auto w_field_s = ekat::subview(w_field_d, i);
+    const auto zt_grid_s = ekat::subview(zt_grid_d, i);
+    const auto zi_grid_s = ekat::subview(zi_grid_d, i);
+    const auto du_dz_m_s = ekat::subview(du_dz_m_d, i);
+    const auto dv_dz_m_s = ekat::subview(dv_dz_m_d, i);
+    const auto dw_dz_m_s = ekat::subview(dw_dz_m_d, i);
+
+    SHF::compute_vertical_shear_terms(team, nlev, nlevi,
+                                      dz_zi_s, u_wind_s, v_wind_s, w_field_s,
+                                      zt_grid_s, zi_grid_s, workspace,
+                                      du_dz_m_s, dv_dz_m_s, dw_dz_m_s);
+  });
+
+  std::vector<view_2d> out_views = {du_dz_m_d, dv_dz_m_d, dw_dz_m_d};
+  ekat::device_to_host({du_dz_m, dv_dz_m, dw_dz_m}, shcol, nlev, out_views);
+}
+
+void assemble_shoc_shear_strain3d_host(Int shcol, Int nlev,
+                                       Real* shear_strain3d_components,
+                                       Real* du_dz_m, Real* dv_dz_m, Real* dw_dz_m,
+                                       Real* shear_strain3d)
+{
+  using SHF = Functions<Real, DefaultDevice>;
+
+  using Pack       = typename SHF::Pack;
+  using view_2d    = typename SHF::view_2d<Pack>;
+  using view_3d    = typename SHF::view_3d<Pack>;
+  using KT         = typename SHF::KT;
+  using ExeSpace   = typename KT::ExeSpace;
+  using TPF        = ekat::TeamPolicyFactory<ExeSpace>;
+  using MemberType = typename SHF::MemberType;
+
+  const Int nlev_packs = ekat::npack<Pack>(nlev);
+
+  std::vector<view_2d> temp_2d_d(4);
+  std::vector<Int> dim1_sizes(4, shcol);
+  std::vector<Int> dim2_sizes = {nlev, nlev, nlev, nlev};
+  std::vector<const Real*> ptr_array = {du_dz_m, dv_dz_m, dw_dz_m, shear_strain3d};
+
+  ekat::host_to_device(ptr_array, dim1_sizes, dim2_sizes, temp_2d_d);
+  view_3d shear_strain3d_components_d("shear_strain3d_components_d", shcol, 6, nlev_packs);
+
+  view_2d
+    du_dz_m_d(temp_2d_d[0]),
+    dv_dz_m_d(temp_2d_d[1]),
+    dw_dz_m_d(temp_2d_d[2]),
+    shear_strain3d_d(temp_2d_d[3]);
+
+  Kokkos::deep_copy(shear_strain3d_components_d, 0);
+  const auto comps_d_s = ekat::scalarize(shear_strain3d_components_d);
+
+  Kokkos::parallel_for(Kokkos::RangePolicy<ExeSpace>(0, shcol*6*nlev), KOKKOS_LAMBDA(const Int idx) {
+    const Int k = idx % nlev;
+    const Int tmp = idx / nlev;
+    const Int j = tmp % 6;
+    const Int i = tmp / 6;
+    comps_d_s(i,j,k) = shear_strain3d_components[idx];
+  });
+
+  const auto policy = TPF::get_default_team_policy(shcol, nlev_packs);
+  Kokkos::parallel_for(policy, KOKKOS_LAMBDA(const MemberType& team) {
+    const Int i = team.league_rank();
+    SHF::assemble_shoc_shear_strain3d(team, nlev,
+                                      ekat::subview(shear_strain3d_components_d, i),
+                                      ekat::subview(du_dz_m_d, i),
+                                      ekat::subview(dv_dz_m_d, i),
+                                      ekat::subview(dw_dz_m_d, i),
+                                      ekat::subview(shear_strain3d_d, i));
+  });
+
+  std::vector<view_2d> out_views = {shear_strain3d_d};
+  ekat::device_to_host({shear_strain3d}, shcol, nlev, out_views);
+}
+
 void compute_tmpi_host(Int nlevi, Int shcol, Real dtime, Real *rho_zi, Real *dz_zi, Real *tmpi)
 {
   using SHF = Functions<Real, DefaultDevice>;
 
-  using Spack      = typename SHF::Spack;
-  using view_2d    = typename SHF::view_2d<Spack>;
+  using Pack      = typename SHF::Pack;
+  using view_2d    = typename SHF::view_2d<Pack>;
   using KT         = typename SHF::KT;
   using ExeSpace   = typename KT::ExeSpace;
+  using TPF        = ekat::TeamPolicyFactory<ExeSpace>;
   using MemberType = typename SHF::MemberType;
 
   static constexpr Int num_arrays = 3;
@@ -2039,8 +2212,8 @@ void compute_tmpi_host(Int nlevi, Int shcol, Real dtime, Real *rho_zi, Real *dz_
     dz_zi_d(temp_d[1]),
     tmpi_d(temp_d[2]);
 
-  const Int nk_pack = ekat::npack<Spack>(nlevi);
-  const auto policy = ekat::ExeSpaceUtils<ExeSpace>::get_default_team_policy(shcol, nk_pack);
+  const Int nk_pack = ekat::npack<Pack>(nlevi);
+  const auto policy = TPF::get_default_team_policy(shcol, nk_pack);
   Kokkos::parallel_for(policy, KOKKOS_LAMBDA(const MemberType& team) {
     const Int i = team.league_rank();
 
@@ -2063,10 +2236,11 @@ void integ_column_stability_host(Int nlev, Int shcol, Real *dz_zt,
 
   using Scalar     = typename SHF::Scalar;
   using view_1d    = typename SHF::view_1d<Scalar>;
-  using Spack      = typename SHF::Spack;
-  using view_2d    = typename SHF::view_2d<Spack>;
+  using Pack      = typename SHF::Pack;
+  using view_2d    = typename SHF::view_2d<Pack>;
   using KT         = typename SHF::KT;
   using ExeSpace   = typename KT::ExeSpace;
+  using TPF        = ekat::TeamPolicyFactory<ExeSpace>;
   using MemberType = typename SHF::MemberType;
 
   static constexpr Int num_arrays = 3;
@@ -2084,8 +2258,8 @@ void integ_column_stability_host(Int nlev, Int shcol, Real *dz_zt,
   //Output
   view_1d brunt_int_d("brunt_int", shcol);
 
-  const Int nk_pack = ekat::npack<Spack>(nlev);
-  const auto policy = ekat::ExeSpaceUtils<ExeSpace>::get_default_team_policy(shcol, nk_pack);
+  const Int nk_pack = ekat::npack<Pack>(nlev);
+  const auto policy = TPF::get_default_team_policy(shcol, nk_pack);
 
   Kokkos::parallel_for(policy, KOKKOS_LAMBDA(const MemberType& team) {
       const Int i = team.league_rank();
@@ -2105,7 +2279,7 @@ void integ_column_stability_host(Int nlev, Int shcol, Real *dz_zt,
 
   // Sync back to host
   std::vector<view_1d> inout_views = {brunt_int_d};
-  ScreamDeepCopy::copy_to_host({brunt_int}, shcol, inout_views);
+  ekat::device_to_host({brunt_int}, shcol, inout_views);
 }
 
 void isotropic_ts_host(Int nlev, Int shcol, Real* brunt_int, Real* tke,
@@ -2114,11 +2288,12 @@ void isotropic_ts_host(Int nlev, Int shcol, Real* brunt_int, Real* tke,
   using SHF = Functions<Real, DefaultDevice>;
 
   using Scalar     = typename SHF::Scalar;
-  using Spack      = typename SHF::Spack;
+  using Pack      = typename SHF::Pack;
   using view_1d    = typename SHF::view_1d<Scalar>;
-  using view_2d    = typename SHF::view_2d<Spack>;
+  using view_2d    = typename SHF::view_2d<Pack>;
   using KT         = typename SHF::KT;
   using ExeSpace   = typename KT::ExeSpace;
+  using TPF        = ekat::TeamPolicyFactory<ExeSpace>;
   using MemberType = typename SHF::MemberType;
 
   std::vector<view_1d> temp_1d(1); // for 1d array
@@ -2128,7 +2303,7 @@ void isotropic_ts_host(Int nlev, Int shcol, Real* brunt_int, Real* tke,
   std::vector<const Real*> ptr_array = {tke, a_diss, brunt, isotropy};
 
   // Sync to device
-  ScreamDeepCopy::copy_to_device({brunt_int}, shcol, temp_1d);
+  ekat::host_to_device({brunt_int}, shcol, temp_1d);
   ekat::host_to_device(ptr_array, shcol, nlev, temp_2d);
 
   //inputs
@@ -2141,8 +2316,8 @@ void isotropic_ts_host(Int nlev, Int shcol, Real* brunt_int, Real* tke,
     //output
     isotropy_d(temp_2d[3]);
 
-  const Int nk_pack = ekat::npack<Spack>(nlev);
-  const auto policy = ekat::ExeSpaceUtils<ExeSpace>::get_default_team_policy(shcol, nk_pack);
+  const Int nk_pack = ekat::npack<Pack>(nlev);
+  const auto policy = TPF::get_default_team_policy(shcol, nk_pack);
 
   Kokkos::parallel_for(policy, KOKKOS_LAMBDA(const MemberType& team) {
       const Int i = team.league_rank();
@@ -2175,10 +2350,11 @@ void dp_inverse_host(Int nlev, Int shcol, Real *rho_zt, Real *dz_zt, Real *rdp_z
 {
   using SHF = Functions<Real, DefaultDevice>;
 
-  using Spack      = typename SHF::Spack;
-  using view_2d    = typename SHF::view_2d<Spack>;
+  using Pack      = typename SHF::Pack;
+  using view_2d    = typename SHF::view_2d<Pack>;
   using KT         = typename SHF::KT;
   using ExeSpace   = typename KT::ExeSpace;
+  using TPF        = ekat::TeamPolicyFactory<ExeSpace>;
   using MemberType = typename SHF::MemberType;
 
   static constexpr Int num_arrays = 3;
@@ -2193,8 +2369,8 @@ void dp_inverse_host(Int nlev, Int shcol, Real *rho_zt, Real *dz_zt, Real *rdp_z
     dz_zt_d(temp_d[1]),
     rdp_zt_d(temp_d[2]);
 
-  const Int nk_pack = ekat::npack<Spack>(nlev);
-  const auto policy = ekat::ExeSpaceUtils<ExeSpace>::get_default_team_policy(shcol, nk_pack);
+  const Int nk_pack = ekat::npack<Pack>(nlev);
+  const auto policy = TPF::get_default_team_policy(shcol, nk_pack);
   Kokkos::parallel_for(policy, KOKKOS_LAMBDA(const MemberType& team) {
     const Int i = team.league_rank();
 
@@ -2213,8 +2389,8 @@ void dp_inverse_host(Int nlev, Int shcol, Real *rho_zt, Real *dz_zt, Real *rdp_z
 int shoc_init_host(Int nlev, Real *pref_mid, Int nbot_shoc, Int ntop_shoc)
 {
   using SHF  = Functions<Real, DefaultDevice>;
-  using Spack       = typename SHF::Spack;
-  using view_1d     = typename SHF::view_1d<Spack>;
+  using Pack       = typename SHF::Pack;
+  using view_1d     = typename SHF::view_1d<Pack>;
 
   // Sync to device
   std::vector<view_1d> temp_d(1);
@@ -2226,9 +2402,11 @@ int shoc_init_host(Int nlev, Real *pref_mid, Int nbot_shoc, Int ntop_shoc)
 
 Int shoc_main_host(Int shcol, Int nlev, Int nlevi, Real dtime, Int nadv, Int npbl, Real* host_dx, Real* host_dy, Real* thv, Real* zt_grid,
                 Real* zi_grid, Real* pres, Real* presi, Real* pdel, Real* wthl_sfc, Real* wqw_sfc, Real* uw_sfc, Real* vw_sfc,
+                Real* uw_sfc_pert, Real* vw_sfc_pert,
                 Real* wtracer_sfc, Int num_qtracers, Real* w_field, Real* inv_exner, Real* phis, Real* host_dse, Real* tke,
                 Real* thetal, Real* qw, Real* u_wind, Real* v_wind, Real* qtracers, Real* wthv_sec, Real* tkh, Real* tk,
-                Real* shoc_ql, Real* shoc_cldfrac, Real* pblh, Real* shoc_mix, Real* isotropy, Real* w_sec, Real* thl_sec,
+                Real* shoc_ql, Real* um_pert, Real* vm_pert,
+                Real* shoc_cldfrac, Real* pblh, Real* shoc_mix, Real* isotropy, Real* w_sec, Real* thl_sec,
                 Real* qw_sec, Real* qwthl_sec, Real* wthl_sec, Real* wqw_sec, Real* wtke_sec, Real* uw_sec, Real* vw_sec,
                 Real* w3, Real* wqls_sec, Real* brunt, Real* shoc_ql2)
 {
@@ -2236,16 +2414,17 @@ Int shoc_main_host(Int shcol, Int nlev, Int nlevi, Real dtime, Int nadv, Int npb
   using SHF  = Functions<Real, DefaultDevice>;
 
   using Scalar     = typename SHF::Scalar;
-  using Spack      = typename SHF::Spack;
+  using Pack      = typename SHF::Pack;
   using view_1d    = typename SHF::view_1d<Scalar>;
-  using view_2d    = typename SHF::view_2d<Spack>;
-  using view_3d    = typename SHF::view_3d<Spack>;
+  using view_2d    = typename SHF::view_2d<Pack>;
+  using view_3d    = typename SHF::view_3d<Pack>;
   using ExeSpace   = typename SHF::KT::ExeSpace;
+  using TPF        = ekat::TeamPolicyFactory<ExeSpace>;
   using MemberType = typename SHF::MemberType;
 
   // Initialize Kokkos views, sync to device
-  static constexpr Int num_1d_arrays = 7;
-  static constexpr Int num_2d_arrays = 35;
+  static constexpr Int num_1d_arrays = 9;
+  static constexpr Int num_2d_arrays = 37;
   static constexpr Int num_3d_arrays = 1;
 
   std::vector<view_1d> temp_1d_d(num_1d_arrays);
@@ -2255,44 +2434,46 @@ Int shoc_main_host(Int shcol, Int nlev, Int nlevi, Real dtime, Int nadv, Int npb
   std::vector<int> dim1_2d_sizes = {shcol, shcol, shcol, shcol, shcol,
                                     shcol, shcol, shcol, shcol, shcol,
                                     shcol, shcol, shcol, shcol, shcol,
-                                    shcol, shcol, shcol, shcol, shcol,
+                                    shcol, shcol, shcol, shcol, shcol, shcol, shcol,
                                     shcol, shcol, shcol, shcol, shcol,
                                     shcol, shcol, shcol, shcol, shcol,
                                     shcol, shcol, shcol, shcol, shcol};
   std::vector<int> dim2_2d_sizes = {nlev,  nlevi, nlev,         nlevi, nlev,
                                     nlev,  nlev,  num_qtracers, nlev,  nlev,
                                     nlev,  nlev,  nlev,         nlev,  nlev,
-                                    nlev,  nlev,  nlev,         nlev,  nlev,
+                                    nlev,  nlev,  nlev,         nlev,  nlev, nlev, nlev,
                                     nlev,  nlev,  nlev,         nlevi, nlevi,
                                     nlevi, nlevi, nlevi,        nlevi, nlevi,
                                     nlevi, nlevi, nlev,         nlev,  nlev};
 
   std::vector<const Real*> ptr_array_1d = {host_dx, host_dy, wthl_sfc, wqw_sfc,
-                                           uw_sfc,  vw_sfc,  phis};
+                                           uw_sfc,  vw_sfc,  uw_sfc_pert, vw_sfc_pert, phis};
   std::vector<const Real*> ptr_array_2d = {zt_grid,   zi_grid,  pres,          presi,        pdel,
                                            thv,       w_field,  wtracer_sfc,   inv_exner,    host_dse,
                                            tke,       thetal,   qw,            u_wind,       v_wind,
-                                           wthv_sec,  tk,       shoc_cldfrac,  shoc_ql,      shoc_ql2,
+                                           wthv_sec,  tk,       shoc_cldfrac,  shoc_ql,      shoc_ql2, um_pert, vm_pert,
                                            tkh,       shoc_mix, w_sec,         thl_sec,      qw_sec,
                                            qwthl_sec, wthl_sec, wqw_sec,       wtke_sec,     uw_sec,
                                            vw_sec,    w3,       wqls_sec,      brunt,        isotropy};
 
-  ScreamDeepCopy::copy_to_device(ptr_array_1d, shcol, temp_1d_d);
+  ekat::host_to_device(ptr_array_1d, shcol, temp_1d_d);
   ekat::host_to_device(ptr_array_2d, dim1_2d_sizes, dim2_2d_sizes, temp_2d_d);
   ekat::host_to_device({qtracers}, shcol, nlev, num_qtracers, temp_3d_d);
 
   Int index_counter = 0;
   view_1d
-    host_dx_d (temp_1d_d[index_counter++]),
-    host_dy_d (temp_1d_d[index_counter++]),
-    wthl_sfc_d(temp_1d_d[index_counter++]),
-    wqw_sfc_d (temp_1d_d[index_counter++]),
-    uw_sfc_d  (temp_1d_d[index_counter++]),
-    vw_sfc_d  (temp_1d_d[index_counter++]),
-    phis_d    (temp_1d_d[index_counter++]),
-    pblh_d    ("pblh",shcol),
-    ustar_d   ("ustar",shcol),
-    obklen_d  ("obklen",shcol);
+    host_dx_d    (temp_1d_d[index_counter++]),
+    host_dy_d    (temp_1d_d[index_counter++]),
+    wthl_sfc_d   (temp_1d_d[index_counter++]),
+    wqw_sfc_d    (temp_1d_d[index_counter++]),
+    uw_sfc_d     (temp_1d_d[index_counter++]),
+    vw_sfc_d     (temp_1d_d[index_counter++]),
+    uw_sfc_pert_d(temp_1d_d[index_counter++]),
+    vw_sfc_pert_d(temp_1d_d[index_counter++]),
+    phis_d       (temp_1d_d[index_counter++]),
+    pblh_d       ("pblh",shcol),
+    ustar_d      ("ustar",shcol),
+    obklen_d     ("obklen",shcol);
 
   index_counter = 0;
   view_2d
@@ -2316,6 +2497,8 @@ Int shoc_main_host(Int shcol, Int nlev, Int nlevi, Real dtime, Int nadv, Int npb
     shoc_cldfrac_d(temp_2d_d[index_counter++]),
     shoc_ql_d     (temp_2d_d[index_counter++]),
     shoc_ql2_d    (temp_2d_d[index_counter++]),
+    um_pert_d     (temp_2d_d[index_counter++]),
+    vm_pert_d     (temp_2d_d[index_counter++]),
     tkh_d         (temp_2d_d[index_counter++]),
     shoc_mix_d    (temp_2d_d[index_counter++]),
     w_sec_d       (temp_2d_d[index_counter++]),
@@ -2337,9 +2520,13 @@ Int shoc_main_host(Int shcol, Int nlev, Int nlevi, Real dtime, Int nadv, Int npb
 
   // shoc_main treats u/v_wind as 1 array and
   // CXX version of shoc qtracers is the transpose of the fortran version..
-  const auto nlev_packs = ekat::npack<Spack>(nlev);
+  const auto nlev_packs = ekat::npack<Pack>(nlev);
+  view_2d shear_strain3d_d("shear_strain3d_d", shcol, nlev_packs);
+  view_3d shear_strain3d_components_d("shear_strain3d_components_d", shcol, 6, nlev_packs);
   view_3d horiz_wind_d("horiz_wind",shcol,2,nlev_packs);
   view_3d qtracers_cxx_d("qtracers",shcol,num_qtracers,nlev_packs);
+  Kokkos::deep_copy(shear_strain3d_d, 0);
+  Kokkos::deep_copy(shear_strain3d_components_d, 0);
 
   // scalarize each view
   const auto u_wind_d_s = ekat::scalarize(u_wind_d);
@@ -2348,7 +2535,7 @@ Int shoc_main_host(Int shcol, Int nlev, Int nlevi, Real dtime, Int nadv, Int npb
   const auto qtracers_cxx_d_s = ekat::scalarize(qtracers_cxx_d);
   const auto qtracers_f90_d_s = ekat::scalarize(qtracers_f90_d);
 
-  const auto policy = ekat::ExeSpaceUtils<ExeSpace>::get_default_team_policy(shcol, nlev_packs);
+  const auto policy = TPF::get_default_team_policy(shcol, nlev_packs);
   Kokkos::parallel_for(policy, KOKKOS_LAMBDA(const MemberType& team) {
     const Int i = team.league_rank();
     Kokkos::parallel_for(Kokkos::TeamThreadRange(team, nlev), [&] (const Int& k) {
@@ -2362,13 +2549,15 @@ Int shoc_main_host(Int shcol, Int nlev, Int nlevi, Real dtime, Int nadv, Int npb
   });
 
   // Pack our data into structs and ship it off to shoc_main.
-  SHF::SHOCInput shoc_input{host_dx_d,  host_dy_d,     zt_grid_d,   zi_grid_d,
-                             pres_d,    presi_d,       pdel_d,      thv_d,
-                             w_field_d, wthl_sfc_d,    wqw_sfc_d,   uw_sfc_d,
-                             vw_sfc_d,  wtracer_sfc_d, inv_exner_d, phis_d};
+  SHF::SHOCInput shoc_input{ host_dx_d,   host_dy_d,     zt_grid_d,     zi_grid_d,
+                             pres_d,      presi_d,       pdel_d,        thv_d,
+                             w_field_d,   wthl_sfc_d,    wqw_sfc_d,     uw_sfc_d,
+                             vw_sfc_d,    uw_sfc_pert_d, vw_sfc_pert_d, wtracer_sfc_d,
+                             inv_exner_d, phis_d,
+                             shear_strain3d_components_d, shear_strain3d_d};
   SHF::SHOCInputOutput shoc_input_output{host_dse_d,   tke_d,      thetal_d,       qw_d,
                                          horiz_wind_d, wthv_sec_d, qtracers_cxx_d,
-                                         tk_d,         shoc_cldfrac_d, shoc_ql_d};
+                                         tk_d,         shoc_cldfrac_d, shoc_ql_d, um_pert_d, vm_pert_d };
   SHF::SHOCOutput shoc_output{pblh_d, ustar_d, obklen_d, shoc_ql2_d, tkh_d};
   // TODO: HACK: for now, pretend shoc_cond_d and shoc_evap_d are just isotropy_d
   // TODO: this is ok for now as shoc_cond_d and shoc_evap_d aren't edited in testing
@@ -2381,7 +2570,7 @@ Int shoc_main_host(Int shcol, Int nlev, Int nlevi, Real dtime, Int nadv, Int npb
                                              brunt_d,     isotropy_d, shoc_cond_d, shoc_evap_d};
   SHF::SHOCRuntime shoc_runtime_options{0.001,0.04,2.65,0.02,1.0,1.0,1.0,1.0,0.5,7.0,0.1,0.1};
 
-  const auto nlevi_packs = ekat::npack<Spack>(nlevi);
+  const auto nlevi_packs = ekat::npack<Pack>(nlevi);
 
 #ifdef SCREAM_SHOC_SMALL_KERNELS
   view_1d
@@ -2410,9 +2599,9 @@ Int shoc_main_host(Int shcol, Int nlev, Int nlevi, Real dtime, Int nadv, Int npb
 #endif
 
   // Create local workspace
-  const int n_wind_slots = ekat::npack<Spack>(2)*Spack::n;
-  const int n_trac_slots = ekat::npack<Spack>(num_qtracers+3)*Spack::n;
-  ekat::WorkspaceManager<Spack, SHF::KT::Device> workspace_mgr(nlevi_packs, 14+(n_wind_slots+n_trac_slots), policy);
+  const int n_wind_slots = ekat::npack<Pack>(2)*Pack::n;
+  const int n_trac_slots = ekat::npack<Pack>(num_qtracers+3)*Pack::n;
+  ekat::WorkspaceManager<Pack, SHF::KT::Device> workspace_mgr(nlevi_packs, 14+(2*n_wind_slots+n_trac_slots), policy);
 
   const auto elapsed_microsec = SHF::shoc_main(shcol, nlev, nlevi, npbl, nadv, num_qtracers, dtime,
                                                workspace_mgr, shoc_runtime_options,
@@ -2439,7 +2628,7 @@ Int shoc_main_host(Int shcol, Int nlev, Int nlevi, Real dtime, Int nadv, Int npb
   // Sync back to host
   // 1d
   std::vector<view_1d> out_views_1d = {pblh_d};
-  ScreamDeepCopy::copy_to_host({pblh}, shcol, out_views_1d);
+  ekat::device_to_host({pblh}, shcol, out_views_1d);
 
   // 2d
   std::vector<int> dim1_2d_out = {shcol, shcol, shcol, shcol, shcol,
@@ -2478,12 +2667,13 @@ Int shoc_main_host(Int shcol, Int nlev, Int nlevi, Real dtime, Int nadv, Int npb
 void pblintd_height_host(Int shcol, Int nlev, Int npbl, Real* z, Real* u, Real* v, Real* ustar, Real* thv, Real* thv_ref, Real* pblh, Real* rino, bool* check)
 {
   using SHOC       = Functions<Real, DefaultDevice>;
-  using Spack      = typename SHOC::Spack;
+  using Pack      = typename SHOC::Pack;
   using Scalar     = typename SHOC::Scalar;
   using view_1d    = typename SHOC::view_1d<Scalar>;
   using bview_1d   = typename SHOC::view_1d<bool>;
-  using view_2d    = typename SHOC::view_2d<Spack>;
+  using view_2d    = typename SHOC::view_2d<Pack>;
   using ExeSpace   = typename SHOC::KT::ExeSpace;
+  using TPF        = ekat::TeamPolicyFactory<ExeSpace>;
   using MemberType = typename SHOC::MemberType;
 
   std::vector<view_2d> views_2d(5);
@@ -2496,17 +2686,17 @@ void pblintd_height_host(Int shcol, Int nlev, Int npbl, Real* z, Real* u, Real* 
           rino_2d(views_2d[4]);
 
   std::vector<view_1d> views_1d(3);
-  ScreamDeepCopy::copy_to_device({ustar, thv_ref, pblh}, shcol, views_1d);
+  ekat::host_to_device({ustar, thv_ref, pblh}, shcol, views_1d);
   view_1d ustar_1d   (views_1d[0]),
           thv_ref_1d (views_1d[1]),
           pblh_1d    (views_1d[2]);
 
   std::vector<bview_1d> views_bool_1d(1);
-  ScreamDeepCopy::copy_to_device({check}, shcol, views_bool_1d);
+  ekat::host_to_device({check}, shcol, views_bool_1d);
   bview_1d check_1d (views_bool_1d[0]);
 
-  const Int nlev_pack = ekat::npack<Spack>(nlev);
-  const auto policy = ekat::ExeSpaceUtils<ExeSpace>::get_default_team_policy(shcol, nlev_pack);
+  const Int nlev_pack = ekat::npack<Pack>(nlev);
+  const auto policy = TPF::get_default_team_policy(shcol, nlev_pack);
   Kokkos::parallel_for(policy, KOKKOS_LAMBDA(const MemberType& team) {
     const Int i = team.league_rank();
 
@@ -2525,13 +2715,13 @@ void pblintd_height_host(Int shcol, Int nlev, Int npbl, Real* z, Real* u, Real* 
  });
 
   std::vector<view_1d> out_1d_views = {pblh_1d};
-  ScreamDeepCopy::copy_to_host({pblh}, shcol, out_1d_views);
+  ekat::device_to_host({pblh}, shcol, out_1d_views);
 
   std::vector<view_2d> out_2d_views = {rino_2d};
   ekat::device_to_host({rino}, shcol, nlev, out_2d_views);
 
   std::vector<bview_1d> out_bool_1d_views = {check_1d};
-  ScreamDeepCopy::copy_to_host({check}, shcol, out_bool_1d_views);
+  ekat::device_to_host({check}, shcol, out_bool_1d_views);
 }
 
 void vd_shoc_decomp_and_solve_host(Int shcol, Int nlev, Int nlevi, Int num_rhs, Real dtime, Real* kv_term, Real* tmpi, Real* rdp_zt, Real* flux, Real* var)
@@ -2539,13 +2729,14 @@ void vd_shoc_decomp_and_solve_host(Int shcol, Int nlev, Int nlevi, Int num_rhs, 
   using SHF = Functions<Real, DefaultDevice>;
 
   using Scalar         = typename SHF::Scalar;
-  using Spack          = typename SHF::Spack;
+  using Pack          = typename SHF::Pack;
   using view_1d        = typename SHF::view_1d<Scalar>;
-  using view_2d        = typename SHF::view_2d<Spack>;
+  using view_2d        = typename SHF::view_2d<Pack>;
   using view_2d_scalar = typename SHF::view_2d<Scalar>;
-  using view_3d        = typename SHF::view_3d<Spack>;
+  using view_3d        = typename SHF::view_3d<Pack>;
   using KT             = typename SHF::KT;
   using ExeSpace       = typename KT::ExeSpace;
+  using TPF            = ekat::TeamPolicyFactory<ExeSpace>;
   using MemberType     = typename SHF::MemberType;
 
   static constexpr Int num_1d_arrays = 1;
@@ -2561,7 +2752,7 @@ void vd_shoc_decomp_and_solve_host(Int shcol, Int nlev, Int nlevi, Int num_rhs, 
   std::vector<const Real*> ptr_array = {kv_term, tmpi, rdp_zt};
 
   // Sync to device
-  ScreamDeepCopy::copy_to_device({flux}, shcol, temp_1d_d);
+  ekat::host_to_device({flux}, shcol, temp_1d_d);
   ekat::host_to_device(ptr_array, dim1_sizes, dim2_sizes, temp_2d_d);
   ekat::host_to_device({var}, shcol, nlev, num_rhs, temp_3d_d);
 
@@ -2581,8 +2772,8 @@ void vd_shoc_decomp_and_solve_host(Int shcol, Int nlev, Int nlevi, Int num_rhs, 
   view_3d
     var_d(temp_3d_d[0]);
 
-  const Int nk_pack = ekat::npack<Spack>(nlev);
-  const auto policy = ekat::ExeSpaceUtils<ExeSpace>::get_default_team_policy(shcol, nk_pack);
+  const Int nk_pack = ekat::npack<Pack>(nlev);
+  const auto policy = TPF::get_default_team_policy(shcol, nk_pack);
   Kokkos::parallel_for(policy, KOKKOS_LAMBDA(const MemberType& team) {
     const Int i = team.league_rank();
 
@@ -2609,10 +2800,11 @@ void shoc_grid_host(Int shcol, Int nlev, Int nlevi, Real* zt_grid, Real* zi_grid
 {
   using SHF = Functions<Real, DefaultDevice>;
 
-  using Spack      = typename SHF::Spack;
-  using view_2d    = typename SHF::view_2d<Spack>;
+  using Pack      = typename SHF::Pack;
+  using view_2d    = typename SHF::view_2d<Pack>;
   using KT         = typename SHF::KT;
   using ExeSpace   = typename KT::ExeSpace;
+  using TPF        = ekat::TeamPolicyFactory<ExeSpace>;
   using MemberType = typename SHF::MemberType;
 
   static constexpr Int num_2d_arrays = 6;
@@ -2634,8 +2826,8 @@ void shoc_grid_host(Int shcol, Int nlev, Int nlevi, Real* zt_grid, Real* zi_grid
     dz_zi_d(temp_2d_d[4]),
     rho_zt_d(temp_2d_d[5]);
 
-  const Int nk_pack = ekat::npack<Spack>(nlev);
-  const auto policy = ekat::ExeSpaceUtils<ExeSpace>::get_default_team_policy(shcol, nk_pack);
+  const Int nk_pack = ekat::npack<Pack>(nlev);
+  const auto policy = TPF::get_default_team_policy(shcol, nk_pack);
   Kokkos::parallel_for(policy, KOKKOS_LAMBDA(const MemberType& team) {
     const Int i = team.league_rank();
 
@@ -2651,20 +2843,21 @@ void shoc_grid_host(Int shcol, Int nlev, Int nlevi, Real* zt_grid, Real* zi_grid
 
   // Sync back to host
   std::vector<view_2d> inout_views = {dz_zt_d, dz_zi_d, rho_zt_d};
-  ekat::device_to_host<Int>({dz_zt, dz_zi, rho_zt}, {shcol, shcol, shcol}, {nlev, nlevi, nlev}, inout_views);
+  ekat::device_to_host({dz_zt, dz_zi, rho_zt}, std::vector<int>{shcol, shcol, shcol}, std::vector<int>{nlev, nlevi, nlev}, inout_views);
 }
 
-void eddy_diffusivities_host(Int nlev, Int shcol, bool shoc_1p5tke, Real* pblh, Real* zt_grid, Real* tabs, Real* shoc_mix, Real* sterm_zt,
+void eddy_diffusivities_host(Int nlev, Int shcol, Real* pblh, Real* zt_grid, Real* tabs, Real* shoc_mix, Real* sterm_zt,
                           Real* isotropy, Real* tke, Real* tkh, Real* tk)
 {
   using SHF = Functions<Real, DefaultDevice>;
 
   using Scalar     = typename SHF::Scalar;
-  using Spack      = typename SHF::Spack;
+  using Pack      = typename SHF::Pack;
   using view_1d    = typename SHF::view_1d<Scalar>;
-  using view_2d    = typename SHF::view_2d<Spack>;
+  using view_2d    = typename SHF::view_2d<Pack>;
   using KT         = typename SHF::KT;
   using ExeSpace   = typename KT::ExeSpace;
+  using TPF        = ekat::TeamPolicyFactory<ExeSpace>;
   using MemberType = typename SHF::MemberType;
 
   static constexpr Int num_1d_arrays = 1;
@@ -2677,7 +2870,7 @@ void eddy_diffusivities_host(Int nlev, Int shcol, bool shoc_1p5tke, Real* pblh, 
                                         isotropy, tke,  tkh,      tk};
 
   // Sync to device
-  ScreamDeepCopy::copy_to_device({pblh}, shcol, temp_1d_d);
+  ekat::host_to_device({pblh}, shcol, temp_1d_d);
   ekat::host_to_device(ptr_array, shcol, nlev, temp_2d_d);
 
   view_1d pblh_d(temp_1d_d[0]);
@@ -2692,8 +2885,8 @@ void eddy_diffusivities_host(Int nlev, Int shcol, bool shoc_1p5tke, Real* pblh, 
     tkh_d(temp_2d_d[6]),
     tk_d(temp_2d_d[7]);
 
-  const Int nk_pack = ekat::npack<Spack>(nlev);
-  const auto policy = ekat::ExeSpaceUtils<ExeSpace>::get_default_team_policy(shcol, nk_pack);
+  const Int nk_pack = ekat::npack<Pack>(nlev);
+  const auto policy = TPF::get_default_team_policy(shcol, nk_pack);
   Kokkos::parallel_for(policy, KOKKOS_LAMBDA(const MemberType& team) {
     const Int i = team.league_rank();
 
@@ -2712,7 +2905,7 @@ void eddy_diffusivities_host(Int nlev, Int shcol, bool shoc_1p5tke, Real* pblh, 
     const Real Ckh = 0.1;
     const Real Ckm = 0.1;
 
-    SHF::eddy_diffusivities(team, nlev, shoc_1p5tke, Ckh, Ckm, pblh_s, zt_grid_s, tabs_s, shoc_mix_s, sterm_zt_s, isotropy_s, tke_s, tkh_s, tk_s);
+    SHF::eddy_diffusivities(team, nlev, Ckh, Ckm, pblh_s, zt_grid_s, tabs_s, shoc_mix_s, sterm_zt_s, isotropy_s, tke_s, tkh_s, tk_s);
   });
 
   // Sync back to host
@@ -2723,11 +2916,11 @@ void eddy_diffusivities_host(Int nlev, Int shcol, bool shoc_1p5tke, Real* pblh, 
 void pblintd_surf_temp_host(Int shcol, Int nlev, Int nlevi, Real* z, Real* ustar, Real* obklen, Real* kbfs, Real* thv, Real* tlv, Real* pblh, bool* check, Real* rino)
 {
   using SHOC       = Functions<Real, DefaultDevice>;
-  using Spack      = typename SHOC::Spack;
+  using Pack      = typename SHOC::Pack;
   using Scalar     = typename SHOC::Scalar;
   using view_1d      = typename SHOC::view_1d<Scalar>;
   using view_bool_1d = typename SHOC::view_1d<bool>;
-  using view_2d      = typename SHOC::view_2d<Spack>;
+  using view_2d      = typename SHOC::view_2d<Pack>;
 
   std::vector<view_2d> views_2d(3);
   ekat::host_to_device({z, thv, rino}, shcol, nlev, views_2d);
@@ -2736,7 +2929,7 @@ void pblintd_surf_temp_host(Int shcol, Int nlev, Int nlevi, Real* z, Real* ustar
           rino_2d(views_2d[2]);
 
   std::vector<view_1d> views_1d(5);
-  ScreamDeepCopy::copy_to_device({ustar, obklen, kbfs, pblh, tlv}, shcol, views_1d);
+  ekat::host_to_device({ustar, obklen, kbfs, pblh, tlv}, shcol, views_1d);
   view_1d ustar_1d (views_1d[0]),
           obklen_1d(views_1d[1]),
           kbfs_1d  (views_1d[2]),
@@ -2744,7 +2937,7 @@ void pblintd_surf_temp_host(Int shcol, Int nlev, Int nlevi, Real* z, Real* ustar
           tlv_1d   (views_1d[4]);
 
   std::vector<view_bool_1d> bviews_1d(1);
-  ScreamDeepCopy::copy_to_device({check}, shcol, bviews_1d);
+  ekat::host_to_device({check}, shcol, bviews_1d);
   view_bool_1d check_1d (bviews_1d[0]);
 
   Int npbl = nlev;
@@ -2768,35 +2961,35 @@ void pblintd_surf_temp_host(Int shcol, Int nlev, Int nlevi, Real* z, Real* ustar
   });
 
   std::vector<view_1d> out_1d_views = {pblh_1d, tlv_1d};
-  ScreamDeepCopy::copy_to_host({pblh, tlv}, shcol, out_1d_views);
+  ekat::device_to_host({pblh, tlv}, shcol, out_1d_views);
 
   std::vector<view_2d> out_2d_views = {rino_2d};
   ekat::device_to_host({rino}, shcol, nlev, out_2d_views);
 
   std::vector<view_bool_1d> out_bool_1d_views = {check_1d};
-  ScreamDeepCopy::copy_to_host({check}, shcol, out_bool_1d_views);
+  ekat::device_to_host({check}, shcol, out_bool_1d_views);
 }
 
 void pblintd_check_pblh_host(Int shcol, Int nlev, Int nlevi, Int npbl, Real* z, Real* ustar, bool* check, Real* pblh)
 {
   using SHOC         = Functions<Real, DefaultDevice>;
-  using Spack        = typename SHOC::Spack;
+  using Pack        = typename SHOC::Pack;
   using Scalar       = typename SHOC::Scalar;
   using view_bool_1d = typename SHOC::view_1d<bool>;
   using view_1d      = typename SHOC::view_1d<Scalar>;
-  using view_2d      = typename SHOC::view_2d<Spack>;
+  using view_2d      = typename SHOC::view_2d<Pack>;
 
   std::vector<view_2d> views_2d(1);
   ekat::host_to_device({z}, shcol, nlev, views_2d);
   view_2d z_2d (views_2d[0]);
 
   std::vector<view_1d> views_1d(2);
-  ScreamDeepCopy::copy_to_device({ustar, pblh}, shcol, views_1d);
+  ekat::host_to_device({ustar, pblh}, shcol, views_1d);
   view_1d ustar_1d (views_1d[0]),
           pblh_1d  (views_1d[1]);
 
   std::vector<view_bool_1d> bool_views_1d(1);
-  ScreamDeepCopy::copy_to_device({check}, shcol, bool_views_1d);
+  ekat::host_to_device({check}, shcol, bool_views_1d);
   view_bool_1d check_1d(bool_views_1d[0]);
 
   Kokkos::parallel_for("pblintd_check_pblh", shcol, KOKKOS_LAMBDA (const int& i) {
@@ -2810,7 +3003,7 @@ void pblintd_check_pblh_host(Int shcol, Int nlev, Int nlevi, Int npbl, Real* z, 
  });
 
   std::vector<view_1d> out_1d_views = {pblh_1d};
-  ScreamDeepCopy::copy_to_host({pblh}, shcol, out_1d_views);
+  ekat::device_to_host({pblh}, shcol, out_1d_views);
 }
 
 void pblintd_host(Int shcol, Int nlev, Int nlevi, Int npbl, Real* z, Real* zi, Real* thl, Real* ql, Real* q, Real* u, Real* v, Real* ustar, Real* obklen, Real* kbfs, Real* cldn, Real* pblh)
@@ -2818,11 +3011,12 @@ void pblintd_host(Int shcol, Int nlev, Int nlevi, Int npbl, Real* z, Real* zi, R
     using SHF = Functions<Real, DefaultDevice>;
 
     using Scalar     = typename SHF::Scalar;
-    using Spack      = typename SHF::Spack;
+    using Pack      = typename SHF::Pack;
     using view_1d    = typename SHF::view_1d<Scalar>;
-    using view_2d    = typename SHF::view_2d<Spack>;
+    using view_2d    = typename SHF::view_2d<Pack>;
     using KT         = typename SHF::KT;
     using ExeSpace   = typename KT::ExeSpace;
+    using TPF        = ekat::TeamPolicyFactory<ExeSpace>;
     using MemberType = typename SHF::MemberType;
 
     static constexpr Int num_1d_arrays = 3;
@@ -2838,7 +3032,7 @@ void pblintd_host(Int shcol, Int nlev, Int nlevi, Int npbl, Real* z, Real* zi, R
                                           q, u,  v,   cldn};
 
     // Sync to device
-    ScreamDeepCopy::copy_to_device({ustar, obklen, kbfs}, shcol, temp_1d_d);
+    ekat::host_to_device({ustar, obklen, kbfs}, shcol, temp_1d_d);
     ekat::host_to_device(ptr_array, dim1_sizes, dim2_sizes, temp_2d_d);
 
     view_1d
@@ -2857,11 +3051,11 @@ void pblintd_host(Int shcol, Int nlev, Int nlevi, Int npbl, Real* z, Real* zi, R
       v_d(temp_2d_d[6]),
       cldn_d(temp_2d_d[7]);
 
-    const Int nlev_pack = ekat::npack<Spack>(nlev);
-    const auto policy = ekat::ExeSpaceUtils<ExeSpace>::get_default_team_policy(shcol, nlev_pack);
+    const Int nlev_pack = ekat::npack<Pack>(nlev);
+    const auto policy = TPF::get_default_team_policy(shcol, nlev_pack);
 
     // Local variable workspace
-    ekat::WorkspaceManager<Spack, KT::Device> workspace_mgr(nlev_pack, 2, policy);
+    ekat::WorkspaceManager<Pack, KT::Device> workspace_mgr(nlev_pack, 2, policy);
 
     Kokkos::parallel_for(policy, KOKKOS_LAMBDA(const MemberType& team) {
       const Int i = team.league_rank();
@@ -2890,7 +3084,7 @@ void pblintd_host(Int shcol, Int nlev, Int nlevi, Int npbl, Real* z, Real* zi, R
 
     // Sync back to host
     std::vector<view_1d> out_views = {pblh_d};
-    ScreamDeepCopy::copy_to_host({pblh}, shcol, out_views);
+    ekat::device_to_host({pblh}, shcol, out_views);
 }
 
 void shoc_tke_host(Int shcol, Int nlev, Int nlevi, Real dtime, bool shoc_1p5tke, Real* wthv_sec, Real* shoc_mix, Real* dz_zi, Real* dz_zt, Real* pres,
@@ -2900,11 +3094,13 @@ void shoc_tke_host(Int shcol, Int nlev, Int nlevi, Real dtime, bool shoc_1p5tke,
   using SHF = Functions<Real, DefaultDevice>;
 
   using Scalar     = typename SHF::Scalar;
-  using Spack      = typename SHF::Spack;
+  using Pack       = typename SHF::Pack;
   using view_1d    = typename SHF::view_1d<Scalar>;
-  using view_2d    = typename SHF::view_2d<Spack>;
+  using view_2d    = typename SHF::view_2d<Pack>;
+  using view_3d    = typename SHF::view_3d<Pack>;
   using KT         = typename SHF::KT;
   using ExeSpace   = typename KT::ExeSpace;
+  using TPF        = ekat::TeamPolicyFactory<ExeSpace>;
   using MemberType = typename SHF::MemberType;
 
   static constexpr Int num_1d_arrays = 1;
@@ -2920,7 +3116,7 @@ void shoc_tke_host(Int shcol, Int nlev, Int nlevi, Real dtime, bool shoc_1p5tke,
                                         brunt,    zt_grid,  zi_grid, tke,    tk,    tkh,   isotropy};
 
   // Sync to device
-  ScreamDeepCopy::copy_to_device({pblh}, shcol, temp_1d_d);
+  ekat::host_to_device({pblh}, shcol, temp_1d_d);
   ekat::host_to_device(ptr_array, dim1_sizes, dim2_sizes, temp_2d_d);
 
   view_1d pblh_d(temp_1d_d[0]);
@@ -2942,12 +3138,19 @@ void shoc_tke_host(Int shcol, Int nlev, Int nlevi, Real dtime, bool shoc_1p5tke,
     tkh_d(temp_2d_d[13]),
     isotropy_d(temp_2d_d[14]);
 
-  const Int nlev_packs = ekat::npack<Spack>(nlev);
-  const Int nlevi_packs = ekat::npack<Spack>(nlevi);
-  const auto policy = ekat::ExeSpaceUtils<ExeSpace>::get_default_team_policy(shcol, nlev_packs);
+  const Int nlev_packs = ekat::npack<Pack>(nlev);
+  const Int nlevi_packs = ekat::npack<Pack>(nlevi);
+
+  view_2d w_field_d("w_field_d", shcol, nlev_packs);
+  view_2d shear_strain3d_d("shear_strain3d_d", shcol, nlev_packs);
+  view_3d shear_strain3d_components_d("shear_strain3d_components_d", shcol, 6, nlev_packs);
+  Kokkos::deep_copy(w_field_d, 0);
+  Kokkos::deep_copy(shear_strain3d_d, 0);
+  Kokkos::deep_copy(shear_strain3d_components_d, 0);
+  const auto policy = TPF::get_default_team_policy(shcol, nlev_packs);
 
   // Local variable workspace
-  ekat::WorkspaceManager<Spack, KT::Device> workspace_mgr(nlevi_packs, 3, policy);
+  ekat::WorkspaceManager<Pack, KT::Device> workspace_mgr(nlevi_packs, 6, policy);
 
   Kokkos::parallel_for(policy, KOKKOS_LAMBDA(const MemberType& team) {
     const Int i = team.league_rank();
@@ -2960,6 +3163,7 @@ void shoc_tke_host(Int shcol, Int nlev, Int nlevi, Real dtime, bool shoc_1p5tke,
     const auto shoc_mix_s = ekat::subview(shoc_mix_d, i);
     const auto u_wind_s = ekat::subview(u_wind_d, i);
     const auto v_wind_s = ekat::subview(v_wind_d, i);
+    const auto w_field_s = ekat::subview(w_field_d, i);
     const auto dz_zi_s = ekat::subview(dz_zi_d, i);
     const auto dz_zt_s = ekat::subview(dz_zt_d, i);
     const auto pres_s = ekat::subview(pres_d, i);
@@ -2971,6 +3175,8 @@ void shoc_tke_host(Int shcol, Int nlev, Int nlevi, Real dtime, bool shoc_1p5tke,
     const auto tk_s = ekat::subview(tk_d, i);
     const auto tkh_s = ekat::subview(tkh_d, i);
     const auto isotropy_s = ekat::subview(isotropy_d, i);
+    const auto shear_strain3d_s = ekat::subview(shear_strain3d_d, i);
+    const auto shear_strain3d_components_s = ekat::subview(shear_strain3d_components_d, i);
 
     // Hardcode for F90 testing
     const Real lambda_low    = 0.001;
@@ -2979,11 +3185,12 @@ void shoc_tke_host(Int shcol, Int nlev, Int nlevi, Real dtime, bool shoc_1p5tke,
     const Real lambda_thresh = 0.02;
     const Real Ckh           = 0.1;
     const Real Ckm           = 0.1;
+    const bool do_3d_turb    = false;
     
     SHF::shoc_tke(team,nlev,nlevi,dtime,lambda_low,lambda_high,lambda_slope,lambda_thresh,
-                  Ckh, Ckm, shoc_1p5tke,
-		  wthv_sec_s,shoc_mix_s,dz_zi_s,dz_zt_s,pres_s,
-                  tabs_s,u_wind_s,v_wind_s,brunt_s,zt_grid_s,zi_grid_s,pblh_s,
+                  Ckh, Ckm, shoc_1p5tke, do_3d_turb,
+		  wthv_sec_s,shear_strain3d_components_s,shear_strain3d_s,shoc_mix_s,dz_zi_s,dz_zt_s,pres_s,
+                  tabs_s,u_wind_s,v_wind_s,w_field_s,brunt_s,zt_grid_s,zi_grid_s,pblh_s,
                   workspace,
                   tke_s,tk_s,tkh_s,isotropy_s);
   });
@@ -2997,10 +3204,11 @@ void compute_shoc_temperature_host(Int shcol, Int nlev, Real *thetal, Real *ql, 
 {
   using SHF = Functions<Real, DefaultDevice>;
 
-  using Spack      = typename SHF::Spack;
-  using view_2d    = typename SHF::view_2d<Spack>;
+  using Pack      = typename SHF::Pack;
+  using view_2d    = typename SHF::view_2d<Pack>;
   using KT         = typename SHF::KT;
   using ExeSpace   = typename KT::ExeSpace;
+  using TPF        = ekat::TeamPolicyFactory<ExeSpace>;
   using MemberType = typename SHF::MemberType;
 
   static constexpr Int num_arrays = 4;
@@ -3016,8 +3224,8 @@ void compute_shoc_temperature_host(Int shcol, Int nlev, Real *thetal, Real *ql, 
     inv_exner_d(temp_d[2]),
     tabs_d(temp_d[3]);
 
-  const Int nk_pack = ekat::npack<Spack>(nlev);
-  const auto policy = ekat::ExeSpaceUtils<ExeSpace>::get_default_team_policy(shcol, nk_pack);
+  const Int nk_pack = ekat::npack<Pack>(nlev);
+  const auto policy = TPF::get_default_team_policy(shcol, nk_pack);
   Kokkos::parallel_for(policy, KOKKOS_LAMBDA(const MemberType& team) {
     const Int i = team.league_rank();
 
@@ -3038,7 +3246,7 @@ void shoc_assumed_pdf_tilde_to_real_host(Real w_first, Real sqrtw2, Real* w1)
 {
   using SHF = Functions<Real, DefaultDevice>;
 
-  using Spack   = typename SHF::Spack;
+  using Pack   = typename SHF::Pack;
   using view_1d = typename SHF::view_1d<Real>;
 
   view_1d t_d("t_d", 1);
@@ -3046,7 +3254,7 @@ void shoc_assumed_pdf_tilde_to_real_host(Real w_first, Real sqrtw2, Real* w1)
 
   Real local_w1(*w1);
   Kokkos::parallel_for(1, KOKKOS_LAMBDA(const Int&) {
-    Spack sqrtw2_(sqrtw2), w1_(local_w1), w_first_(w_first);
+    Pack sqrtw2_(sqrtw2), w1_(local_w1), w_first_(w_first);
     SHF::shoc_assumed_pdf_tilde_to_real(w_first_, sqrtw2_, w1_);
     t_d(0) = w1_[0];
   });
@@ -3058,14 +3266,14 @@ void shoc_assumed_pdf_vv_parameters_host(Real w_first, Real w_sec, Real w3var, R
 {
   using SHF = Functions<Real, DefaultDevice>;
 
-  using Spack   = typename SHF::Spack;
+  using Pack   = typename SHF::Pack;
   using view_1d = typename SHF::view_1d<Real>;
 
   view_1d t_d("t_d", 6);
   const auto t_h = Kokkos::create_mirror_view(t_d);
 
   Kokkos::parallel_for(1, KOKKOS_LAMBDA(const Int&) {
-    Spack w3var_(w3var), w_first_(w_first), w_sec_(w_sec), a_, skew_w_, w1_1_, w1_2_, w2_1_, w2_2_;
+    Pack w3var_(w3var), w_first_(w_first), w_sec_(w_sec), a_, skew_w_, w1_1_, w1_2_, w2_1_, w2_2_;
     SHF::shoc_assumed_pdf_vv_parameters(w_first_, w_sec_, w3var_, w_tol_sqd, skew_w_, w1_1_, w1_2_, w2_1_, w2_2_, a_);
     t_d(0) = a_[0];
     t_d(1) = skew_w_[0];
@@ -3087,14 +3295,14 @@ void shoc_assumed_pdf_thl_parameters_host(Real wthlsec, Real sqrtw2, Real sqrtth
 {
   using SHF = Functions<Real, DefaultDevice>;
 
-  using Spack   = typename SHF::Spack;
+  using Pack   = typename SHF::Pack;
   using view_1d = typename SHF::view_1d<Real>;
 
   view_1d t_d("t_d", 6);
   const auto t_h = Kokkos::create_mirror_view(t_d);
 
   Kokkos::parallel_for(1, KOKKOS_LAMBDA(const Int&) {
-    Spack a_(a), skew_w_(skew_w), sqrtthl_(sqrtthl), sqrtw2_(sqrtw2), thl_first_(thl_first), thlsec_(thlsec), w1_1_(w1_1), w1_2_(w1_2), wthlsec_(wthlsec), sqrtthl2_1_, sqrtthl2_2_, thl1_1_, thl1_2_, thl2_1_, thl2_2_;
+    Pack a_(a), skew_w_(skew_w), sqrtthl_(sqrtthl), sqrtw2_(sqrtw2), thl_first_(thl_first), thlsec_(thlsec), w1_1_(w1_1), w1_2_(w1_2), wthlsec_(wthlsec), sqrtthl2_1_, sqrtthl2_2_, thl1_1_, thl1_2_, thl2_1_, thl2_2_;
     SHF::shoc_assumed_pdf_thl_parameters(wthlsec_, sqrtw2_, sqrtthl_, thlsec_, thl_first_, w1_1_, w1_2_, skew_w_, a_, thl_tol, w_thresh, thl1_1_, thl1_2_, thl2_1_, thl2_2_, sqrtthl2_1_, sqrtthl2_2_);
     t_d(0) = sqrtthl2_1_[0];
     t_d(1) = sqrtthl2_2_[0];
@@ -3116,14 +3324,14 @@ void shoc_assumed_pdf_qw_parameters_host(Real wqwsec, Real sqrtw2, Real skew_w, 
 {
   using SHF = Functions<Real, DefaultDevice>;
 
-  using Spack   = typename SHF::Spack;
+  using Pack   = typename SHF::Pack;
   using view_1d = typename SHF::view_1d<Real>;
 
   view_1d t_d("t_d", 6);
   const auto t_h = Kokkos::create_mirror_view(t_d);
 
   Kokkos::parallel_for(1, KOKKOS_LAMBDA(const Int&) {
-    Spack a_(a), qw_first_(qw_first), qwsec_(qwsec), skew_w_(skew_w), sqrtqt_(sqrtqt), sqrtw2_(sqrtw2), w1_1_(w1_1), w1_2_(w1_2), wqwsec_(wqwsec), qw1_1_, qw1_2_, qw2_1_, qw2_2_, sqrtqw2_1_, sqrtqw2_2_;
+    Pack a_(a), qw_first_(qw_first), qwsec_(qwsec), skew_w_(skew_w), sqrtqt_(sqrtqt), sqrtw2_(sqrtw2), w1_1_(w1_1), w1_2_(w1_2), wqwsec_(wqwsec), qw1_1_, qw1_2_, qw2_1_, qw2_2_, sqrtqw2_1_, sqrtqw2_2_;
     SHF::shoc_assumed_pdf_qw_parameters(wqwsec_, sqrtw2_, skew_w_, sqrtqt_, qwsec_, w1_2_, w1_1_, qw_first_, a_, rt_tol, w_thresh, qw1_1_, qw1_2_, qw2_1_, qw2_2_, sqrtqw2_1_, sqrtqw2_2_);
     t_d(0) = qw1_1_[0];
     t_d(1) = qw1_2_[0];
@@ -3145,14 +3353,14 @@ void shoc_assumed_pdf_inplume_correlations_host(Real sqrtqw2_1, Real sqrtthl2_1,
 {
   using SHF = Functions<Real, DefaultDevice>;
 
-  using Spack   = typename SHF::Spack;
+  using Pack   = typename SHF::Pack;
   using view_1d = typename SHF::view_1d<Real>;
 
   view_1d t_d("t_d", 1);
   const auto t_h = Kokkos::create_mirror_view(t_d);
 
   Kokkos::parallel_for(1, KOKKOS_LAMBDA(const Int&) {
-    Spack a_(a), qw1_1_(qw1_1), qw1_2_(qw1_2), qw_first_(qw_first), qwthlsec_(qwthlsec), sqrtqw2_1_(sqrtqw2_1), sqrtqw2_2_(sqrtqw2_2), sqrtthl2_1_(sqrtthl2_1), sqrtthl2_2_(sqrtthl2_2), thl1_1_(thl1_1), thl1_2_(thl1_2), thl_first_(thl_first), r_qwthl_1_;
+    Pack a_(a), qw1_1_(qw1_1), qw1_2_(qw1_2), qw_first_(qw_first), qwthlsec_(qwthlsec), sqrtqw2_1_(sqrtqw2_1), sqrtqw2_2_(sqrtqw2_2), sqrtthl2_1_(sqrtthl2_1), sqrtthl2_2_(sqrtthl2_2), thl1_1_(thl1_1), thl1_2_(thl1_2), thl_first_(thl_first), r_qwthl_1_;
     SHF::shoc_assumed_pdf_inplume_correlations(sqrtqw2_1_, sqrtthl2_1_, a_, sqrtqw2_2_, sqrtthl2_2_, qwthlsec_, qw1_1_, qw_first_, thl1_1_, thl_first_, qw1_2_, thl1_2_, r_qwthl_1_);
     t_d(0) = r_qwthl_1_[0];
   });
@@ -3164,14 +3372,14 @@ void shoc_assumed_pdf_compute_temperature_host(Real thl1, Real pval, Real* tl1)
 {
   using SHF = Functions<Real, DefaultDevice>;
 
-  using Spack   = typename SHF::Spack;
+  using Pack   = typename SHF::Pack;
   using view_1d = typename SHF::view_1d<Real>;
 
   view_1d t_d("t_d", 1);
   const auto t_h = Kokkos::create_mirror_view(t_d);
 
   Kokkos::parallel_for(1, KOKKOS_LAMBDA(const Int&) {
-    Spack pval_(pval), thl1_(thl1), tl1_;
+    Pack pval_(pval), thl1_(thl1), tl1_;
     SHF::shoc_assumed_pdf_compute_temperature(thl1_, pval_, tl1_);
     t_d(0) = tl1_[0];
   });
@@ -3183,16 +3391,16 @@ void shoc_assumed_pdf_compute_qs_host(Real tl1_1, Real tl1_2, Real pval, Real* q
 {
   using SHF = Functions<Real, DefaultDevice>;
 
-  using Spack   = typename SHF::Spack;
-  using Smask   = typename SHF::Smask;
+  using Pack   = typename SHF::Pack;
+  using Mask   = typename SHF::Mask;
   using view_1d = typename SHF::view_1d<Real>;
 
   view_1d t_d("t_d", 4);
   const auto t_h = Kokkos::create_mirror_view(t_d);
 
   Kokkos::parallel_for(1, KOKKOS_LAMBDA(const Int&) {
-    Spack pval_(pval), tl1_1_(tl1_1), tl1_2_(tl1_2), beta1_, beta2_, qs1_, qs2_;
-    Smask active_entries(true);
+    Pack pval_(pval), tl1_1_(tl1_1), tl1_2_(tl1_2), beta1_, beta2_, qs1_, qs2_;
+    Mask active_entries(true);
     SHF::shoc_assumed_pdf_compute_qs(tl1_1_, tl1_2_, pval_, active_entries, qs1_, beta1_, qs2_, beta2_);
     t_d(0) = beta1_[0];
     t_d(1) = beta2_[0];
@@ -3210,14 +3418,14 @@ void shoc_assumed_pdf_compute_s_host(Real qw1, Real qs1, Real beta, Real pval, R
 {
   using SHF = Functions<Real, DefaultDevice>;
 
-  using Spack   = typename SHF::Spack;
+  using Pack   = typename SHF::Pack;
   using view_1d = typename SHF::view_1d<Real>;
 
   view_1d t_d("t_d", 4);
   const auto t_h = Kokkos::create_mirror_view(t_d);
 
   Kokkos::parallel_for(1, KOKKOS_LAMBDA(const Int&) {
-    Spack beta_(beta), pval_(pval), qs1_(qs1), qw1_(qw1), qw2_(qw2), r_qwthl_(r_qwthl), sqrtqw2_(sqrtqw2), sqrtthl2_(sqrtthl2), thl2_(thl2), c_, qn_, s_, std_s_;
+    Pack beta_(beta), pval_(pval), qs1_(qs1), qw1_(qw1), qw2_(qw2), r_qwthl_(r_qwthl), sqrtqw2_(sqrtqw2), sqrtthl2_(sqrtthl2), thl2_(thl2), c_, qn_, s_, std_s_;
     SHF::shoc_assumed_pdf_compute_s(qw1_, qs1_, beta_, pval_, thl2_, qw2_, sqrtthl2_, sqrtqw2_, r_qwthl_, s_, std_s_, qn_, c_);
     t_d(0) = c_[0];
     t_d(1) = qn_[0];
@@ -3235,14 +3443,14 @@ void shoc_assumed_pdf_compute_sgs_liquid_host(Real a, Real ql1, Real ql2, Real* 
 {
   using SHF = Functions<Real, DefaultDevice>;
 
-  using Spack   = typename SHF::Spack;
+  using Pack   = typename SHF::Pack;
   using view_1d = typename SHF::view_1d<Real>;
 
   view_1d t_d("t_d", 1);
   const auto t_h = Kokkos::create_mirror_view(t_d);
 
   Kokkos::parallel_for(1, KOKKOS_LAMBDA(const Int&) {
-    Spack a_(a), ql1_(ql1), ql2_(ql2), shoc_ql_;
+    Pack a_(a), ql1_(ql1), ql2_(ql2), shoc_ql_;
     SHF::shoc_assumed_pdf_compute_sgs_liquid(a_, ql1_, ql2_, shoc_ql_);
     t_d(0) = shoc_ql_[0];
   });
@@ -3254,14 +3462,14 @@ void shoc_assumed_pdf_compute_cloud_liquid_variance_host(Real a, Real s1, Real q
 {
   using SHF = Functions<Real, DefaultDevice>;
 
-  using Spack   = typename SHF::Spack;
+  using Pack   = typename SHF::Pack;
   using view_1d = typename SHF::view_1d<Real>;
 
   view_1d t_d("t_d", 1);
   const auto t_h = Kokkos::create_mirror_view(t_d);
 
   Kokkos::parallel_for(1, KOKKOS_LAMBDA(const Int&) {
-    Spack a_(a), c1_(c1), c2_(c2), ql1_(ql1), ql2_(ql2), s1_(s1), s2_(s2), shoc_ql_(shoc_ql), std_s1_(std_s1), std_s2_(std_s2), shoc_ql2_;
+    Pack a_(a), c1_(c1), c2_(c2), ql1_(ql1), ql2_(ql2), s1_(s1), s2_(s2), shoc_ql_(shoc_ql), std_s1_(std_s1), std_s2_(std_s2), shoc_ql2_;
     SHF::shoc_assumed_pdf_compute_cloud_liquid_variance(a_, s1_, ql1_, c1_, std_s1_, s2_, ql2_, c2_, std_s2_, shoc_ql_, shoc_ql2_);
     t_d(0) = shoc_ql2_[0];
   });
@@ -3273,14 +3481,14 @@ void shoc_assumed_pdf_compute_liquid_water_flux_host(Real a, Real w1_1, Real w_f
 {
   using SHF = Functions<Real, DefaultDevice>;
 
-  using Spack   = typename SHF::Spack;
+  using Pack   = typename SHF::Pack;
   using view_1d = typename SHF::view_1d<Real>;
 
   view_1d t_d("t_d", 1);
   const auto t_h = Kokkos::create_mirror_view(t_d);
 
   Kokkos::parallel_for(1, KOKKOS_LAMBDA(const Int&) {
-    Spack a_(a), ql1_(ql1), ql2_(ql2), w1_1_(w1_1), w1_2_(w1_2), w_first_(w_first), wqls_;
+    Pack a_(a), ql1_(ql1), ql2_(ql2), w1_1_(w1_1), w1_2_(w1_2), w_first_(w_first), wqls_;
     SHF::shoc_assumed_pdf_compute_liquid_water_flux(a_, w1_1_, w_first_, ql1_, w1_2_, ql2_, wqls_);
     t_d(0) = wqls_[0];
   });
@@ -3292,14 +3500,14 @@ void shoc_assumed_pdf_compute_buoyancy_flux_host(Real wthlsec, Real wqwsec, Real
 {
   using PF = Functions<Real, DefaultDevice>;
 
-  using Spack   = typename PF::Spack;
+  using Pack   = typename PF::Pack;
   using view_1d = typename PF::view_1d<Real>;
 
   view_1d t_d("t_d", 1);
   const auto t_h = Kokkos::create_mirror_view(t_d);
 
   Kokkos::parallel_for(1, KOKKOS_LAMBDA(const Int&) {
-    Spack pval_(pval), wqls_(wqls), wqwsec_(wqwsec), wthlsec_(wthlsec), wthv_sec_;
+    Pack pval_(pval), wqls_(wqls), wqwsec_(wqwsec), wthlsec_(wthlsec), wthv_sec_;
     PF::shoc_assumed_pdf_compute_buoyancy_flux(wthlsec_, wqwsec_, pval_, wqls_, wthv_sec_);
     t_d(0) = wthv_sec_[0];
   });

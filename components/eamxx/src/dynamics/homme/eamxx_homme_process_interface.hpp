@@ -2,11 +2,11 @@
 #define SCREAM_HOMME_DYNAMICS_HPP
 
 #include "share/atm_process/atmosphere_process.hpp"
-#include "share/grid/remap/abstract_remapper.hpp"
+#include "share/remap/abstract_remapper.hpp"
+#include "dynamics/homme/homme_dimensions.hpp"
 
-#include "ekat/ekat_parameter_list.hpp"
-#include "ekat/ekat_pack.hpp"
-#include "ekat/ekat_workspace.hpp"
+#include <ekat_parameter_list.hpp>
+#include <ekat_pack.hpp>
 
 #include <string>
 
@@ -25,8 +25,6 @@ class HommeDynamics : public AtmosphereProcess
 {
   // Define some types needed by class
   using Pack = ekat::Pack<Real, SCREAM_PACK_SIZE>;
-  using IntPack = ekat::Pack<int, SCREAM_PACK_SIZE>;
-  using Mask = ekat::Mask<SCREAM_PACK_SIZE>;
 
   using KT = KokkosTypes<DefaultDevice>;
   template<typename ScalarT>
@@ -39,9 +37,8 @@ class HommeDynamics : public AtmosphereProcess
   using uview_1d = ekat::Unmanaged<view_1d<ST>>;
   template<typename ST>
   using uview_2d = ekat::Unmanaged<view_2d<ST>>;
-
-  using WorkspaceMgr = ekat::WorkspaceManager<Pack, DefaultDevice>;
-  using Workspace = WorkspaceMgr::Workspace;
+  using fixed_view_2d_phys = Kokkos::View<Real*[HOMMEXX_NUM_PHYSICAL_LEV], KT::view_2d<Real>::array_layout,
+                                           DefaultDevice, Kokkos::MemoryTraits<Kokkos::Unmanaged>>;
 
 public:
 
@@ -56,7 +53,7 @@ public:
   std::string name () const { return "homme"; }
 
   // Set the grid
-  void set_grids (const std::shared_ptr<const GridsManager> grids_manager);
+  void create_requests ();
 
 #ifndef KOKKOS_ENABLE_CUDA
   // Cuda requires methods enclosing __device__ lambda's to be public
@@ -84,6 +81,9 @@ protected:
   void copy_dyn_states_to_all_timelevels ();
 
   void initialize_impl (const RunType run_type);
+
+  void compute_horizontal_derivs_of_car_velocity ();
+  void compute_local_strain_components3d ();
 
   // fv_phys refers to the horizontal finite volume (FV) grid for column
   // parameterizations nested inside the horizontal element grid. The grid names
@@ -162,6 +162,16 @@ protected:
   Real m_raykrange; // Range of rayleigh friction profile.
   Real m_raytau0;   // Approximate value of decay time at model top (days)
                     // if set to 0, no rayleigh friction is applied
+
+  // Scratch reused by the 3D turbulence strain kernels when that feature is active.
+  fixed_view_2d_phys m_w_mid_row_all;
+  fixed_view_2d_phys m_w_mid_col_all;
+  fixed_view_2d_phys m_dsdx_Ux_all;
+  fixed_view_2d_phys m_dsdy_Ux_all;
+  fixed_view_2d_phys m_dsdx_Uy_all;
+  fixed_view_2d_phys m_dsdy_Uy_all;
+  fixed_view_2d_phys m_dsdx_Uz_all;
+  fixed_view_2d_phys m_dsdy_Uz_all;
 
   int m_bfb_hash_nstep;
 };

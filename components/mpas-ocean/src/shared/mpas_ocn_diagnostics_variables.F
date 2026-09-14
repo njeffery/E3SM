@@ -70,13 +70,14 @@ module ocn_diagnostics_variables
    real (kind=RKIND), dimension(:,:), pointer :: RiTopOfCell
    real (kind=RKIND), dimension(:,:), pointer :: RiTopOfEdge
 
+   real (kind=RKIND), dimension(:), pointer :: upwindFactor
    real (kind=RKIND), dimension(:), pointer :: gradSSH
    real (kind=RKIND), dimension(:), pointer :: pressureAdjustedSSH
    real (kind=RKIND), dimension(:), pointer :: pgf_sal
    real (kind=RKIND), dimension(:), pointer :: temp_twd
-   real (kind=RKIND), dimension(:), pointer :: normalCoeffTWD 
-   real (kind=RKIND), dimension(:), pointer :: tangentialCoeffTWD 
-   real (kind=RKIND), dimension(:), pointer :: topographicWaveDrag 
+   real (kind=RKIND), dimension(:), pointer :: normalCoeffTWD
+   real (kind=RKIND), dimension(:), pointer :: tangentialCoeffTWD
+   real (kind=RKIND), dimension(:), pointer :: topographicWaveDrag
 
    real (kind=RKIND), dimension(:,:), pointer :: tracersSurfaceValue
    real (kind=RKIND), dimension(:,:), pointer :: tracersSurfaceLayerValue
@@ -87,6 +88,7 @@ module ocn_diagnostics_variables
    real (kind=RKIND), dimension(:), pointer :: surfaceFluxAttenuationCoefficientRunoff
    real (kind=RKIND), dimension(:), pointer :: surfaceFluxAttenuationCoefficientSubglacialRunoff
 
+   real (kind=RKIND), dimension(:), pointer :: landIceDraftForSsh
    real (kind=RKIND), dimension(:), pointer :: landIceFrictionVelocity
    real (kind=RKIND), dimension(:), pointer :: velocityTidalRMS
 
@@ -138,6 +140,7 @@ module ocn_diagnostics_variables
    real(kind=RKIND), dimension(:,:), pointer :: k33
    real(kind=RKIND), dimension(:,:), pointer :: gradDensityEddy
    real(kind=RKIND), dimension(:), pointer   :: gmBolusKappa
+   real(kind=RKIND), dimension(:), pointer   :: totalParamEddyEnergyTendOld
    real(kind=RKIND), dimension(:), pointer   :: cGMphaseSpeed
    real(kind=RKIND), dimension(:,:,:), pointer :: limiterUp, limiterDown, slopeTriadUp, slopeTriadDown
 
@@ -290,6 +293,10 @@ contains
          call mpas_pool_get_array(diagnosticsPool, 'sshCellWetDry', &
                    sshCellWetDry)
       end if
+      if (config_use_spatially_variable_upwind) then
+         call mpas_pool_get_array(diagnosticsPool, 'upwindFactor', &
+                   upwindFactor)
+      end if
 
       if (config_use_GM.or.config_use_Redi) then
          call mpas_pool_get_array(diagnosticsPool, 'RediKappa', &
@@ -309,6 +316,11 @@ contains
                    gmHorizontalTaper)
          call mpas_pool_get_array(diagnosticsPool, 'RossbyRadius', &
                    RossbyRadius)
+      end if
+
+      if (config_use_GM .and. config_GM_closure == "geometric" ) then
+         call mpas_pool_get_array(diagnosticsPool, 'totalParamEddyEnergyTendOld', &
+                                                    totalParamEddyEnergyTendOld)
       end if
 
       if (config_use_GM .or. config_submesoscale_enable) then
@@ -355,6 +367,7 @@ contains
       ! Retrieve pointers for configurations where land_ice_flux_mode is enabled
       if ( trim(config_land_ice_flux_mode) /= 'off' ) then
          call mpas_pool_get_array(diagnosticsPool, 'topDrag', topDrag)
+         call mpas_pool_get_array(diagnosticsPool, 'landIceDraftForSsh', landIceDraftForSsh)
          call mpas_pool_get_array(diagnosticsPool, 'topDragMagnitude', topDragMag)
          call mpas_pool_get_dimension(diagnosticsPool, &
                    'index_landIceBoundaryLayerTemperature', indexBLTPtr)
@@ -751,6 +764,7 @@ contains
          !$acc                   landIceBoundaryLayerTracers,     &
          !$acc                   landIceTracerTransferVelocities, &
          !$acc                   landIceFrictionVelocity,         &
+         !$acc                   landIceDraftForSsh,              &
          !$acc                   velocityTidalRMS)
       end if
       if (config_use_topographic_wave_drag) then
@@ -811,6 +825,7 @@ contains
          !$acc                   GMStreamFuncX,                   &
          !$acc                   GMStreamFuncY,                   &
          !$acc                   GMStreamFuncZ,                   &
+         !$acc                   upwindFactor,                    &
          !$acc                   layerThickEdgeDrag,              &
          !$acc                   layerThickEdgeFlux,              &
          !$acc                   layerThickEdgeMean,              &
@@ -886,6 +901,9 @@ contains
          !$acc                   gmHorizontalTaper,  &
          !$acc                   RossbyRadius  &
          !$acc                   )
+         if ( config_GM_closure == "geometric" ) then
+         !$acc enter data create(totalParamEddyEnergyTendOld)
+         end if
       end if
       if (config_use_GM.or.config_submesoscale_enable) then
          !$acc enter data create(gradDensityEddy)
@@ -941,8 +959,7 @@ contains
          !$acc                   )
       end if
       if ( trim(config_time_integrator) == 'split_explicit_ab2' ) then
-         !$acc enter data create(normalVelocityTendOld, &
-         !$acc                   CoriolisTermOld)
+         !$acc enter data create(normalVelocityTendOld, CoriolisTermOld)
       end if
 
       !$acc enter data create(                                         &
@@ -1010,6 +1027,7 @@ contains
          !$acc                   topDragMag,                      &
          !$acc                   landIceBoundaryLayerTracers,     &
          !$acc                   landIceTracerTransferVelocities, &
+         !$acc                   landIceDraftForSsh,              &
          !$acc                   landIceFrictionVelocity,         &
          !$acc                   velocityTidalRMS)
       end if
@@ -1072,6 +1090,7 @@ contains
          !$acc                   GMStreamFuncX,                   &
          !$acc                   GMStreamFuncY,                   &
          !$acc                   GMStreamFuncZ,                   &
+         !$acc                   upwindFactor,                    &
          !$acc                   layerThickEdgeDrag,              &
          !$acc                   layerThickEdgeFlux,              &
          !$acc                   layerThickEdgeMean,              &
@@ -1146,6 +1165,9 @@ contains
          !$acc                   gmHorizontalTaper,  &
          !$acc                   RossbyRadius  &
          !$acc                   )
+         if ( config_GM_closure == "geometric" ) then
+         !$acc exit data delete(totalParamEddyEnergyTendOld)
+         end if
       end if
       if (config_use_GM.or.config_submesoscale_enable) then
          !$acc exit data delete(gradDensityEddy)
@@ -1201,8 +1223,7 @@ contains
          !$acc                   )
       end if
       if ( trim(config_time_integrator) == 'split_explicit_ab2' ) then
-         !$acc exit data delete(normalVelocityTendOld, &
-         !$acc                  CoriolisTermOld)
+         !$acc exit data delete(normalVelocityTendOld, CoriolisTermOld)
       end if
 
       !$acc exit data delete(                                          &
@@ -1239,6 +1260,7 @@ contains
                  landIceBoundaryLayerTracers,     &
                  landIceTracerTransferVelocities, &
                  landIceFrictionVelocity,         &
+                 landIceDraftForSsh,              &
                  velocityTidalRMS)
       end if
       if ( trim(config_ocean_run_mode) == 'init' ) then
@@ -1280,6 +1302,7 @@ contains
                  GMStreamFuncX,                   &
                  GMStreamFuncY,                   &
                  GMStreamFuncZ,                   &
+                 upwindFactor,                    &
                  layerThickEdgeDrag,              &
                  layerThickEdgeFlux,              &
                  layerThickEdgeMean,              &
@@ -1351,6 +1374,9 @@ contains
                  RediHorizontalTaper, &
                  gmHorizontalTaper, &
                  RossbyRadius)
+         if ( config_GM_closure == "geometric" ) then
+            nullify(totalParamEddyEnergyTendOld)
+         end if
       end if
       if (config_use_GM.or.config_submesoscale_enable) then
          nullify(gradDensityEddy)

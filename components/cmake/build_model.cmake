@@ -165,6 +165,15 @@ macro(build_model COMP_CLASS COMP_NAME)
   endif()
 
   #-------------------------------------------------------------------------------
+  # iac needs specific compile flags and libraries
+  # try adding them here
+  #-------------------------------------------------------------------------------
+
+  if (COMP_NAME STREQUAL "gcam")
+    set(CXXFLAGS "${CXXFLAGS} -DGCAM_PARALLEL_ENABLED=0")
+  endif()
+  
+  #-------------------------------------------------------------------------------
   # WW3 needs some special handling of files based on the switches provided
   #-------------------------------------------------------------------------------
   if (COMP_NAME STREQUAL "ww3")
@@ -254,17 +263,30 @@ macro(build_model COMP_CLASS COMP_NAME)
     add_executable(${TARGET_NAME})
     target_sources(${TARGET_NAME} PRIVATE ${REAL_SOURCES})
 
-    separate_arguments(ALL_LIBS_LIST UNIX_COMMAND "${SLIBS}")
-
     foreach(ITEM IN LISTS COMP_CLASSES)
       if (NOT ITEM STREQUAL "cpl")
         target_link_libraries(${TARGET_NAME} ${ITEM})
       endif()
     endforeach()
 
-    foreach(ITEM IN LISTS ALL_LIBS_LIST)
-      target_link_libraries(${TARGET_NAME} ${ITEM})
-    endforeach()
+    # driver-mct/main sources (e.g. cime_comp_mod.F90) use netcdf directly, but
+    # the component libraries only link netcdf PRIVATEly (via csm_share), so
+    # its usage requirements (e.g. include dirs for netcdf.mod) do not
+    # propagate up to this exe target. Pull in just the include dirs here.
+    #
+    # Deliberately NOT using target_link_libraries(${TARGET_NAME} netcdf):
+    # CMake treats "netcdf" as a single graph node, so linking it directly to
+    # this executable pins its (and PnetCDF's) position to wherever it's
+    # first encountered, ahead of the component libraries below that also
+    # transitively link it via csm_share -> spio. But piof/pioc (also pulled
+    # in via csm_share -> spio) reference PnetCDF symbols, so libpnetcdf.a
+    # must come after them on the link line, or the linker drops its symbols
+    # before piof/pioc need them. Only requesting the include dirs avoids
+    # adding that extra, mis-ordering link edge, while the link libraries
+    # still reach this target correctly ordered via csm_share -> spio.
+    find_package(NETCDF REQUIRED)
+    get_target_property(NETCDF_INTERFACE_INCLUDE_DIRS netcdf INTERFACE_INCLUDE_DIRECTORIES)
+    target_include_directories(${TARGET_NAME} PRIVATE ${NETCDF_INTERFACE_INCLUDE_DIRS})
 
     if (USE_MOAB)
       target_link_libraries(${TARGET_NAME} ${MOAB_LIBRARIES})
@@ -273,7 +295,7 @@ macro(build_model COMP_CLASS COMP_NAME)
 
     # Make sure we link blas/lapack
     if (NOT DEFINED ENV{SKIP_BLAS})
-      target_link_libraries(${TARGET_NAME} BLAS::BLAS LAPACK::LAPACK)
+      target_link_libraries(${TARGET_NAME} LAPACK::LAPACK)
     endif()
 
     if (E3SM_LINK_WITH_FORTRAN)
@@ -288,7 +310,7 @@ macro(build_model COMP_CLASS COMP_NAME)
       set_target_properties(${TARGET_NAME} PROPERTIES LINKER_LANGUAGE CXX)
 
       if (COMPILER STREQUAL "oneapi-ifxgpu")
-        string(APPEND CMAKE_EXE_LINKER_FLAGS " -Wl,-\-defsym,main=MAIN_\_ -lifcore -\-intel -fsycl -lsycl -Xsycl-target-backend \"-device 12.60.7\" ")
+        string(APPEND CMAKE_EXE_LINKER_FLAGS " -Wl,-\-defsym,main=MAIN_\_ -lifcore -fsycl -Xsycl-target-backend \"-device pvc\" ")
       endif()
 
     endif()
@@ -324,6 +346,10 @@ macro(build_model COMP_CLASS COMP_NAME)
         if (USE_PETSC)
           target_link_libraries(${TARGET_NAME} PRIVATE "${PETSC_LIBRARIES}")
           target_include_directories(${TARGET_NAME} PRIVATE "${PETSC_INCLUDES}")
+        endif()
+        if (USE_MOAB)
+          target_link_libraries(${TARGET_NAME} PRIVATE ${MOAB_LIBRARIES})
+          target_include_directories(${TARGET_NAME} PRIVATE ${MOAB_INCLUDE_DIRS})
         endif()
       endif()
       if (COMP_NAME STREQUAL "ww3")

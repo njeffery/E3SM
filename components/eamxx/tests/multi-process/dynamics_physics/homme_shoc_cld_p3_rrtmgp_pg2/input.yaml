@@ -30,7 +30,7 @@ initial_conditions:
   sfc_alb_dif_nir: 0.0
   landfrac: 0.5
 
-atmosphere_processes:
+eamxx:
   atm_procs_list: [homme,physics]
   schedule_type: sequential
   homme:
@@ -78,5 +78,5 @@ grids_manager:
 
 # The parameters for I/O control
 scorpio:
-  output_yaml_files: ["output.yaml"]
+  output_yaml_files: ["output.yaml", "output_diags_ins.yaml", "output_diags_avg.yaml"]
 ...

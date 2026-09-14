@@ -114,7 +114,10 @@
 			description="Number of subgrid look-up table levels"
 		/>
 		<dim name="nRemovedIceRunoffHistory" definition="namelist:config_ais_ice_runoff_history_days"
-			 description="The number of days stored in the history of removed ice runoff."
+			description="The number of days stored in the history of removed ice runoff."
+		/>
+		<dim name="nAccumulatedSFWFHistory" definition="namelist:config_precip_scaling_history_years"
+			description="The number of years stored in the history of surface freshwater fluxes."
 		/>
 		<dim name="nGlcZLevels" definition="namelist:config_n_glc_z_levels"
                         description="The number of z-levels to use for passing ocean properties to GLC for indirect ice-sheet/ocean coupling"
@@ -218,6 +221,12 @@
 					possible_values="Any integer greater than or equal to 2."
 		/>
 	</nml_record>
+	<nml_record name="lateral_walls" mode="forward">
+		<nml_option name="config_wall_slip_factor" type="real" default_value="1.0"
+					description="Lateral wall slip boundary condition: no-slip=0.0, free-slip=1.0, with partial-slip lying in-between. This factor multiplies relative vorticity computed at vertices positioned on lateral boundaries."
+					possible_values="Any real number between 0.0 and 1.0"
+		/>
+	</nml_record>
 	<nml_record name="hmix" mode="forward">
 		<nml_option name="config_hmix_scaleWithMesh" type="logical" default_value=".false."
 					description="If false, del2 and del4 coefficients are constant throughout the mesh (equivalent to setting $\rho_m=1$ throughout the mesh).  If true, these coefficients scale as mesh density to the -3/4 power."
@@ -281,22 +290,42 @@
 		/>
 	</nml_record>
 	<nml_record name="hmix_Leith" mode="forward">
-		<nml_option name="config_use_Leith_del2" type="logical" default_value=".false."
-					description="If true, the Leith enstrophy-cascade closure is turned on"
-					possible_values=".true. or .false."
-		/>
-		<nml_option name="config_Leith_parameter" type="real" default_value="1.0" units="non-dimensional"
-					description="Non-dimensional Leith closure parameter"
-					possible_values="any positive real"
-		/>
-		<nml_option name="config_Leith_dx" type="real" default_value="15000.0" units="m"
-					description="Characteristic length scale, usually the smallest dx in the mesh"
-					possible_values="any positive real"
-		/>
-		<nml_option name="config_Leith_visc2_max" type="real" default_value="2.5e3" units="m^2 s^-1"
-					description="Upper bound on the allowable value of Leith-computed viscosity"
-					possible_values="any positive real"
-		/>
+                <nml_option name="config_use_Leith_del2" type="logical" default_value=".false."
+                                        description="If true, the modified del2 Leith enstrophy-cascade closure is turned on"
+                                        possible_values=".true. or .false."
+                />
+                <nml_option name="config_use_Leith_del4" type="logical" default_value=".false."
+                                        description="If true, the modified del4 Leith enstrophy-cascade closure is turned on"
+                                        possible_values=".true. or .false."
+                />
+                <nml_option name="config_Leith_del2_parameter" type="real" default_value="2.2" units="non-dimensional"
+                                        description="Non-dimensional Leith del2 closure parameter"
+                                        possible_values="any positive real"
+                />
+                <nml_option name="config_Leith_del4_parameter" type="real" default_value="2.2" units="non-dimensional"
+                                        description="Non-dimensional Leith del4 closure parameter"
+                                        possible_values="any positive real"
+                />
+                <nml_option name="config_Leith_del2_div_scaler" type="real" default_value="1.0" units="non-dimensional"
+                                        description="Non-dimensional Leith del2 closure divergence scaler"
+                                        possible_values="any positive real"
+                />
+                <nml_option name="config_Leith_del4_div_scaler" type="real" default_value="1.0" units="non-dimensional"
+                                        description="Non-dimensional Leith del4 closure divergence scaler"
+                                        possible_values="any positive real"
+                />
+                <nml_option name="config_Leith_dx" type="real" default_value="30000.0" units="m"
+                                        description="Characteristic length scale, usually the smallest dx in the mesh"
+                                        possible_values="any positive real"
+                />
+                <nml_option name="config_Leith_visc2_max" type="real" default_value="1.0e3" units="m^2 s^-1"
+                                        description="Upper bound on the allowable value of Leith-computed viscosity"
+                                        possible_values="any positive real"
+                />
+                <nml_option name="config_Leith_visc4_max" type="real" default_value="1.2e11" units="m^4 s^-1"
+                                        description="Upper bound on the allowable value of Leith-computed viscosity"
+                                        possible_values="any positive real"
+                />
 	</nml_record>
 	<nml_record name="Redi_isopycnal_mixing" mode="forward">
 		<nml_option name="config_use_Redi" type="logical" default_value=".false."
@@ -381,7 +410,7 @@
 		/>
 		<nml_option name="config_GM_closure" type="character" default_value="EdenGreatbatch"
 					description="Control what method used to compute GM $\kappa$. Both 'constant' and 'N2_dependent' use the method in Ferrari et al. 2010 (https://doi.org/10.1016/j.ocemod.2010.01.004). 'constant' uses a constant kappa in eqn 16a, while 'N2_dependent' varies kappa in the vertical according to Danabasoglu and Marshall 2007 (https://doi.org/10.1016/j.ocemod.2007.03.006). 'Visbeck' implements a horizontally varying diffusivity of Visbeck et al 1997. EdenGreatbatch implements a simplified form of the EKE scheme in Eden and Greatbatch (2008) Ocean modeling"
-					possible_values="'constant', 'N2_dependent', 'Visbeck', 'EdenGreatbatch'"
+					possible_values="'constant', 'N2_dependent', 'Visbeck', 'EdenGreatbatch', 'geometric'"
 		/>
 		<nml_option name="config_GM_constant_kappa" type="real" default_value="600.0" units="m^2 s^-1"
 					description="Coefficient of standard GM parametrization of eddy transport (Bolus component), $\kappa$. Only used when config_GM_closure is set to constant."
@@ -430,6 +459,21 @@
 					description="factor multiplying the Rhines length in the scheme from Eden Greatbatch (2008) Ocean Modeling -- Equation (28)"
 					possible_values="small positive values less than equal to one"
 		/>
+                <nml_option name="config_GM_geometric_alpha" type="real" default_value="0.030" units="constant"
+                                        description="Configured GEOMETRIC efficiency"
+                />
+                <nml_option name="config_GM_geometric_eddyDiff" type="real" default_value="600.0" units="m^2 s^-1"
+                                        description="Eddy diffusivity for the depth-integrated parameterized eddy energy"
+                />
+                <nml_option name="config_GM_geometric_dissipation" type="real" default_value="90.0" units="days"
+                                        description="Number of days to dissipate the depth-integrated parameterized eddy energy"
+                />
+                <nml_option name="config_GM_geometric_backgroundEddyEnergy" type="real" default_value="0.1" units="m^3 s^-2"
+                                        description="Background total depth-integrated parameterized eddy energy"
+                />
+                <nml_option name="config_GM_geometric_maximumEddyEnergy" type="real" default_value="1000.0" units="m^3 s^-2"
+                                        description="Maximum total depth-integrated parameterized eddy energy"
+                />
 		<nml_option name="config_GM_horizontal_taper" type="character" default_value="ramp"
 					description="Control how the GM Bolus value varies as a function of horizontal resolution. 'none' is constant, 'ramp' is strictly based on resolution, 'RossbyRadius' follows Hallberg (2013) - https://doi.org/10.1016/j.ocemod.2013.08.007"
 					possible_values="'none', 'ramp', 'RossbyRadius'"
@@ -449,6 +493,20 @@
 		<nml_option name="config_GMRedi_Rossby_ramp_max" type="real" default_value="3.0"
 					description="Maximum value of the ratio between grid-cell size (dcEdge) and Rossby radius for GM and Redi $\kappa$ ramp functions. Used when config_GM_horizontal_taper and/or config_Redi_horizontal_taper are set to RossbyRadius."
 					possible_values="Any positive real value."
+		/>
+	</nml_record>
+	<nml_record name="eddy_kinetic_energy_correction" mode="forward">
+		<nml_option name="config_eke_correction_enable" type="logical" default_value=".false."
+		  description="flag to enable the eddy kinetic energy corrections.  This parameterization is based on the work of Renault et al 2019 - https://doi.org/10.1029/2019MS001715 -- NOTE: this should only be used at for RRS6to18 resolution or finer"
+					possible_values=".true. or .false."
+		/>
+		<nml_option name="config_eke_alpha" type="real" default_value="-2.9e-3"
+					description="'alpha' coefficent for computations of St in equation (10) of Renault et al (2019)"
+					possible_values="small negative values not too far from the default"
+		/>
+		<nml_option name="config_eke_beta" type="real" default_value="0.008"
+					description="'beta' coefficent for computation of St in equation (10) of Renault et al (2019)"
+					possible_values="small positive numbers not far from the default"
 		/>
 	</nml_record>
 	<nml_record name="eddy_parameterization" mode="forward">
@@ -479,12 +537,16 @@
 					possible_values="Any non-negative real value."
 		/>
 		<nml_option name="config_cvmix_background_scheme" type="character" default_value="constant"
-					description="Scheme for background diffusivity, 'constant' for constant with depth and space, 'BryanLewis' for vertically variable, 'none' for no background diffusivity"
+					description="Scheme for background diffusivity, 'constant' for constant with depth and space, 'latitude-dependent' for latitude dependence and constant in depth, 'BryanLewis' for vertically variable, 'none' for no background diffusivity"
 					possible_values="'constant', 'BryanLewis', and 'none'"
 		/>
 		<nml_option name="config_cvmix_background_diffusion" type="real" default_value="1.0e-5" units="m^2 s^-1"
-					description="Background vertical diffusion applied to tracer quantities"
+					description="Background vertical diffusion applied to tracer quantities. For 'latitude-dependent' this is the maximum value"
 					possible_values="Any positive real value."
+		/>
+		<nml_option name="config_cvmix_background_diffusion_max_latitude" type="real" default_value="-50" units="degrees"
+					description="For 'latitude-dependent' this is the maximum latitude at which background diffusivity is non-zero"
+					possible_values="Any real value between -90 and 90."
 		/>
 		<nml_option name="config_cvmix_background_diffusion_passive" type="real" default_value="1.0e-5" units="m^2 s^-1"
 					description="Background vertical diffusion applied to passive tracer quantities"
@@ -660,6 +722,10 @@
 					description="Flag for using prognostic waves. Controls the allocation of wave arrays and computation of Stokes drift profiles."
 					possible_values=".true. or .false."
 		/>
+		<nml_option name="config_momentum_use_active_wave" type="logical" default_value=".false."
+					description="Flag for correcting momentum coupling in ocean due to waves. Requires config_use_active_wave = .true."
+					possible_values=".true. or .false."
+		/>
 		<nml_option name="config_n_stokes_drift_wavenumber_partitions" type="integer" default_value="6"
 					description="Number of wavenumber partitions to be used in reconstructing wave-induced Stokes drift profile"
 					possible_values="3,4,6"
@@ -737,14 +803,39 @@
 					possible_values=".true. or .false."
 		/>
 		<nml_option name="config_sgr_temperature_prescribed" type="real" default_value="0.0" units="C"
-			        description="Prescribed subglacial runoff temperature value, applied when config_use_sgr_opt_temp_prescribed = .true."
+					description="Prescribed subglacial runoff temperature value, applied when config_use_sgr_opt_temp_prescribed = .true."
 					possible_values="Any real number."
 		/>
 		<nml_option name="config_sgr_salinity_prescribed" type="real" default_value="0.0" units="1.e-3"
 					description="Prescribed subglacial runoff salinity value, applied when config_use_sgr_opt_salt_prescribed = .true."
 					possible_values="Any positive real number"
 		/>
-
+	</nml_record>
+	<nml_record name="precip_scaling" mode="init;forward">
+		<nml_option name="config_use_precip_scaling" type="logical" default_value=".false."
+					description="If true, precipitation fluxes will be scalled to ensure freshwater balance in FOSI runs referring to forced ocean-sea ice simulation where ocean model is driven by a data atmosphere with prescribed precipitation (rain + snow) fluxes."
+					possible_values=".true. or .false."
+		/>
+		<nml_option name="config_precip_scaling_mode" type="character" default_value="constant"
+					description="Option for scaling precipitation fluxes to ensure freshwater balance in FOSI runs. config_precip_scaling_mode='constant' uses a prescribed constant factor applied to precipitation fluxes. config_precip_scaling_mode='time-dependent' enables the dynamical caclulation of scaling factors using annual and global mean precipitation (rain + snow) and sea surface height changes over one-year or multi-year period."
+					possible_values="'off', 'constant' or 'time-dependent'"
+		/>
+		<nml_option name="config_precip_scaling_initial_factor" type="real" default_value="1.0" units="unitless"
+					description="Initial guess scaling factor on precipitation fluxes in FOSI runs when config_precip_scaling_mode = 'time-dependent'."
+					possible_values="Non-negative number. A default value of 1.0 indicates no scaling, but values greater than 1.0 can be used to scale up precipitation fluxes in order to achieve freshwater balance in FOSI runs."
+		/>
+		<nml_option name="config_precip_scaling_constant_factor" type="real" default_value="1.0" units="unitless"
+					description="Prescribed constant scaling factor on precipitation fluxes in FOSI runs when config_precip_scaling_mode = 'constant'."
+					possible_values="Non-negative number between 0 and 1.0. Default value of 1.0 means no scaling, but values greater than 1.0 can be used to scale up precipitation fluxes in order to achieve freshwater balance in FOSI runs."
+		/>
+		<nml_option name="config_precip_scaling_history_years" type="integer" default_value="1" units="years"
+					description="The number of years over which scaling factor on precipitation fluxes is computed in FOSI runs. Default value is 1 year."
+					possible_values="Positive integer greater than or equal to 1."
+                />
+		<nml_option name="config_precip_scaling_write_to_logfile" type="logical" default_value=".false."
+					description="Logical flag indicating whether information for precipitation flux scaling in FOSI runs will be written to the log file."
+					possible_values=".true. or .false."
+		/>
 	</nml_record>
 	<nml_record name="time_varying_forcing" mode="init;forward">
 		<nml_option name="config_use_time_varying_atmospheric_forcing" type="logical" default_value=".false."
@@ -1048,6 +1139,16 @@
 			possible_values=".true. or .false."
 		/>
 	</nml_record>
+	<nml_record name="land_ice" mode="init;forward">
+		<nml_option name="config_land_ice_draft_mode" type="character" default_value="pressure-dependent"
+					description="Selects the mode in which land-ice draft is computed."
+					possible_values="'data', 'pressure-dependent'"
+		/>
+		<nml_option name="config_land_ice_rho_ocean" type="real" default_value="1028.0" units="kg m^-3"
+					description="ocean density used to calculate landIceDraft at floatation (assumed constant and uniform). Should be consistent with MALI's config_ocean_density when used to determine grounding line location. This is an alternative to the coupler variable effectiveDensityInLandIce which is not currently used."
+					possible_values="Any positive real number"
+		/>
+	</nml_record>
 	<nml_record name="land_ice_fluxes" mode="init;forward">
 		<nml_option name="config_land_ice_flux_mode" type="character" default_value="off"
 					description="Selects the mode in which land-ice fluxes are computed."
@@ -1147,6 +1248,18 @@
 		<nml_option name="config_thickness_flux_type" type="character" default_value="centered"
 					description="If 'upwind', use upwind to evaluate the edge-value for layerThickness, i.e., layerThickEdgeFlux.  The standard MPAS-O approach is 'centered'. For 'constant', uses constant thickness in time from restingThickness, for linear test problems. Note that these two flags are set together for linearized test cases: config_thickness_flux_type = 'constant' linearizes the thickness equation, and config_disable_vel_hadv = .true. linearizes the momentum equation if there is no assumed mean background velocity."
 					possible_values="'upwind', 'centered', 'constant'"
+		/>
+		<nml_option name="config_use_spatially_variable_upwind" type="logical" default_value=".false."
+					description="If true, use upwindFactor to scale layerThickEdgeFlux by centered and upwind values."
+					possible_values=".true. or .false."
+		/>
+		<nml_option name="config_spatially_variable_upwind_hmin" type="real" default_value="5.0"
+					description="Column thickness above which we start weighting upwind with centered advection."
+					possible_values="Any positive real"
+		/>
+		<nml_option name="config_spatially_variable_upwind_hmax" type="real" default_value="10.0"
+					description="Column thickness above which advection is no longer upwinded."
+					possible_values="Any positive real"
 		/>
 	</nml_record>
 	<nml_record name="bottom_drag" mode="forward">
@@ -1302,7 +1415,7 @@
 					possible_values="Any positive integer greater than or equal to one. A value of one employs the same dt in all regions."
 		/>
 	</nml_record>
-    <nml_record name="forward_backward" mode="forward">
+	<nml_record name="forward_backward" mode="forward">
 		<nml_option name="config_fb_weight_1" type="real" default_value="0.531"
 					description="The forward-backward weight for the first stage of FB-RK(3,2), used in FB_LTS."
 					possible_values="Any positive real number less than or equal to one."
@@ -1465,10 +1578,10 @@
 					description="Tolerance for the barotropic mode solver"
 					possible_values="any positive real, but typically less than 1.0e-9"
 		/>
-                <nml_option name="config_n_btr_si_large_iter" type="integer" default_value="1"
-                                        description="number of large barotropic system iterations"
-                                        possible_values="any positive integer, but typically 1 and less than 2"
-                />
+		<nml_option name="config_n_btr_si_large_iter" type="integer" default_value="1"
+					description="number of large barotropic system iterations"
+					possible_values="any positive integer, but typically 1 and less than 2"
+		/>
 		<nml_option name="config_btr_si_partition_match_mode" type="logical" default_value=".false."
 					description="If true, the split-implicit method uses the Jacobi preconditioner with the bit-for-bit all-reduce. This is less performant, so should only be used for testing."
 					possible_values=".true. or .false."
@@ -1712,10 +1825,114 @@
 					possible_values="Any positive real number"
 		/>
 	</nml_record>
-	<nml_record name="init_mode_subgrid">
+	<nml_record name="init_mode_subgrid" mode="init">
 		<nml_option name="config_subgrid_table_levels" type="integer" default_value="-1"
 					description="Number of levels in subgrid lookup tables"
 					possible_values="Any positive non-zero integer. A value of -1 causes this to be overwritten with the configurations subgrid table levels definition."
+		/>
+		<nml_option name="config_subgrid_topography_extrapolation_method" type="character" default_value="nearest" units="unitless"
+					description="extrapolation method"
+					possible_values="nearest/constant"
+		/>
+		<nml_option name="config_subgrid_topography_extrapolation_constant_value" type="real" default_value="-1.0e10" units="unitless"
+					description="value to be used in the extrapolcation method if it is set to constant"
+					possible_values="any real number"
+		/>
+		<nml_option name="config_subgrid_use_thin_layer" type="logical" default_value=".false." units="unitless"
+					description="Whether to include thin layer in subgrid tables"
+					possible_values=".true. or .false."
+		/>
+		<nml_option name="config_subgrid_edge_bathymetry_max_pixel" type="logical" default_value=".true." units="unitless"
+					description="Use maximum elevation pixels as subgrid bathymetry on cell edges"
+					possible_values=".true. or .false."
+	    />
+		<nml_option name="config_subgrid_refinement_level" type="integer" default_value="3" units="unitless"
+					description="Level of refinement to evaluate subgrid bathymety"
+					possible_values="Any positive integer number"
+	    />	
+		<nml_option name="config_subgrid_ssh_table_min" type="real" default_value="-8.0" units="meters"
+					description="value to be used in the minimum sea surface height in the subgrid lookup table"
+					possible_values="any real number"
+		/>
+		<nml_option name="config_subgrid_ssh_table_max" type="real" default_value="8.0" units="meters"
+					description="value to be used in the maximum sea surface height in the subgrid lookup table"
+					possible_values="any real number"
+		/>
+		<nml_option name="config_subgrid_topography_source" type="character" default_value="xy_file" units="unitless"
+					description="If 'latlon_file/xy_file', reads in topography from file specified in config_subgrid_topography_file"
+					possible_values="'latlon_file' or 'xy_file'"
+		/>
+		<nml_option name="config_subgrid_topography_file" type="character" default_value="none" units="unitless"
+					description="Path to the topography initial condition file."
+					possible_values="path/to/topography/file.nc"
+		/>
+		<nml_option name="config_subgrid_topography_latlon_degrees"  type="logical" default_value=".false." units="unitless"
+					description="Logical flag that controls if the Lat/Lon fields for topography should be converted to radians. True means input is degrees, false means input is radians."
+					possible_values=".true. or .false."
+		/>
+		<nml_option name="config_subgrid_topography_nlat_dimname" type="character" default_value="y" units="unitless"
+					description="Dimension name for the latitude in the topography file."
+					possible_values="Dimension name from input file."
+		/>
+		<nml_option name="config_subgrid_topography_nlon_dimname" type="character" default_value="x" units="unitless"
+					description="Dimension name for the longitude in the topography file."
+					possible_values="Dimension name from input file."
+		/>
+		<nml_option name="config_subgrid_topography_lat_varname" type="character" default_value="y" units="unitless"
+					description="Variable name for the latitude in the topography file."
+					possible_values="Variable name from input file."
+		/>
+		<nml_option name="config_subgrid_topography_lon_varname" type="character" default_value="x" units="unitless"
+					description="Variable name for the longitude in the topography file."
+					possible_values="Variable name from input file."
+		/>
+		<nml_option name="config_subgrid_topography_varname" type="character" default_value="Band1" units="unitless"
+					description="Variable name for the topography in the topography file."
+					possible_values="Variable name from input file."
+	    />
+		<nml_option name="config_subgrid_topography_fill_value" type="real" default_value="99999" units="unitless"
+					description="fill value in the topography file."
+					possible_values="any real number"
+		/>
+		<nml_option name="config_subgrid_topography_positive" type="character" default_value="up" units="unitless"
+					description="direction in which the topo value is positive"
+					possible_values="up/down"
+		/>
+		<nml_option name="config_subgrid_lulc_source" type="character" default_value="xy_file" units="unitless"
+					description="If 'latlon_file/xy_file', reads in lulc from file specified in config_subgrid_lulc_file"
+					possible_values="'latlon_file' or 'xy_file'"
+		/>
+		<nml_option name="config_subgrid_lulc_file" type="character" default_value="none" units="unitless"
+					description="Path to the lulc initial condition file."
+					possible_values="path/to/lulc/file.nc"
+		/>
+		<nml_option name="config_subgrid_lulc_latlon_degrees"  type="logical" default_value=".false." units="unitless"
+					description="Logical flag that controls if the Lat/Lon fields for lulc should be converted to radians. True means input is degrees, false means input is radians."
+					possible_values=".true. or .false."
+		/>
+		<nml_option name="config_subgrid_lulc_nlat_dimname" type="character" default_value="y" units="unitless"
+					description="Dimension name for the latitude in the lulc file."
+					possible_values="Dimension name from input file."
+		/>
+		<nml_option name="config_subgrid_lulc_nlon_dimname" type="character" default_value="x" units="unitless"
+					description="Dimension name for the longitude in the lulc file."
+					possible_values="Dimension name from input file."
+		/>
+		<nml_option name="config_subgrid_lulc_lat_varname" type="character" default_value="y" units="unitless"
+					description="Variable name for the latitude in the lulc file."
+					possible_values="Variable name from input file."
+		/>
+		<nml_option name="config_subgrid_lulc_lon_varname" type="character" default_value="x" units="unitless"
+					description="Variable name for the longitude in the lulc file."
+					possible_values="Variable name from input file."
+		/>
+		<nml_option name="config_subgrid_lulc_varname" type="character" default_value="Band1" units="unitless"
+					description="Variable name for the lulc in the lulc file."
+					possible_values="Variable name from input file."
+	    />
+		<nml_option name="config_subgrid_lulc_fill_value" type="real" default_value="99999" units="unitless"
+					description="fill value in the lulc file."
+					possible_values="any real number"
 		/>
 	</nml_record>
 	<packages>
@@ -1745,6 +1962,7 @@
 		<package name="cullCells" description="This package controls variables that provide information on what cells should be culled."/>
 		<package name="tracerBudget" description="This package controls variables that record the tracer budget."/>
 		<package name="gm" description="This package is for GM variables, which are only needed at lower resolutions."/>
+                <package name="gmGeometric" description="This package is for GEOMETRIC GM parameterization variables, which are only needed at lower resolutions."/>
 		<package name="submeso" description="This package is for submesoscale eddy (MLE) variables, needed at resolutions greater than O(1km)"/>
 		<package name="tidalPotentialForcingPKG" description="This package controls variables required for tidal potential forcing"/>
 		<package name="topographicWaveDragPKG" description="This package controls variables required for topographic wave drag"/>
@@ -1753,6 +1971,7 @@
 		<package name="activeWavePKG" description="This package controls variables required for wave coupling"/>
 		<package name="subgridWetDryPKG" description="This package includes variables required for subgrid wetting and drying."/>
 		<package name="scaledDISMFPKG" description="This package includes variables required scaling data ice-shelf melt fluxes based on the running mean of removed ice runoff."/>
+		<package name="scaledSFWFPKG" description="This package includes variables required deriving freshwater scaling factors to constrain the water balances."/>
 	</packages>
 
 	<streams>
@@ -1805,6 +2024,7 @@
 			<var name="fCell"/>
 			<var name="bed_elevation"/>
 			<var name="LTSRegion"/>
+			<var name="upwindFactor"/>
 		</stream>
 
 		<stream name="output_init"
@@ -1839,6 +2059,7 @@
 			<var name="landIceFloatingMask"/>
 			<var name="landIceFloatingFraction"/>
 			<var name="LTSRegion"/>
+			<var name="upwindFactor"/>
 		</stream>
 
 		<stream name="forcing_data_init"
@@ -2043,6 +2264,7 @@
 			<var name="lowFreqDivergence"/>
 			<var name="normalBarotropicVelocity"/>
 			<var name="vertCoordMovementWeights"/>
+                        <var name="totalParamEddyEnergy" packages="gmGeometric" />
 			<var name="xtime"/>
 			<var_array name="nonLocalSurfaceTracerFlux"/>
 			<var name="simulationStartTime"/>
@@ -2056,6 +2278,7 @@
 			<var name="atmosphericPressure"/>
 			<var name="normalVelocityTendOld" packages="splitAB2TimeIntegrator" />
 			<var name="CoriolisTermOld" packages="splitAB2TimeIntegrator" />
+                        <var name="totalParamEddyEnergyTendOld" packages="gmGeometric" />
 			<var_array name="tracersSurfaceValue"/>
 			<var_array name="surfaceVelocity"/>
 			<var_array name="SSHGradient"/>
@@ -2072,19 +2295,28 @@
 			<var_array name="avgSSHGradient"/>
 			<var name="forcingGroupNames"/>
 			<var name="forcingGroupRestartTimes"/>
-            <var name="gotmVertViscTopOfCell"/>
-            <var name="gotmVertDiffTopOfCell"/>
-            <var name="gotmTKETopOfCell"/>
-            <var name="gotmKbTopOfCell"/>
-            <var name="gotmEpsbTopOfCell"/>
-            <var name="gotmDissTopOfCell"/>
-            <var name="gotmLengthTopOfCell"/>
-            <var name="pgf_sal"/>
-            <var name="nAccumulatedRemovedIceRunoff" packages="scaledDISMFPKG"/>
-            <var name="avgRemovedIceRunoff" packages="scaledDISMFPKG"/>
-            <var name="totalRemovedIceRunoffHistory" packages="scaledDISMFPKG"/>
-            <var name="nValidTotalRemovedIceRunoffHistory" packages="scaledDISMFPKG"/>
-            <var name="runningMeanRemovedIceRunoff" packages="scaledDISMFPKG"/>
+			<var name="gotmVertViscTopOfCell"/>
+			<var name="gotmVertDiffTopOfCell"/>
+			<var name="gotmTKETopOfCell"/>
+			<var name="gotmKbTopOfCell"/>
+			<var name="gotmEpsbTopOfCell"/>
+			<var name="gotmDissTopOfCell"/>
+			<var name="gotmLengthTopOfCell"/>
+			<var name="pgf_sal"/>
+	 		<var name="nAccumulatedRemovedIceRunoff" packages="scaledDISMFPKG"/>
+			<var name="avgRemovedIceRunoff" packages="scaledDISMFPKG"/>
+			<var name="totalRemovedIceRunoffHistory" packages="scaledDISMFPKG"/>
+			<var name="nValidTotalRemovedIceRunoffHistory" packages="scaledDISMFPKG"/>
+			<var name="runningMeanRemovedIceRunoff" packages="scaledDISMFPKG"/>
+			<var name="nAccumulatedfwFlux" packages="scaledSFWFPKG"/>
+			<var name="avgprecFlux" packages="scaledSFWFPKG"/>
+			<var name="avgfwFlux" packages="scaledSFWFPKG"/>
+			<var name="totalAccumulatedprecFluxHistory" packages="scaledSFWFPKG"/>
+			<var name="totalAccumulatedfwFluxHistory" packages="scaledSFWFPKG"/>
+			<var name="SSHinitial" packages="scaledSFWFPKG"/>
+			<var name="SSHfinal" packages="scaledSFWFPKG"/>
+			<var name="nValidTotalfwFluxHistory" packages="scaledSFWFPKG"/>
+			<var name="SFWFScalingFactor" packages="scaledSFWFPKG"/>
 		</stream>
 
 		<stream name="output"
@@ -2473,7 +2705,7 @@
 			description="The effective ocean density within ice shelves based on Archimedes' principle."
 			packages="landIceCouplingPKG"
 		/>
-        <!-- FIELDS FOR GOTM -->
+		<!-- FIELDS FOR GOTM -->
 		<var name="gotmVertViscTopOfCell" type="real" dimensions="nVertLevelsP1 nCells Time" units="m^2 s^-1"
 			 description="GOTM: vertical viscosity defined at the cell center (horizontally) and top (vertically)"
 			 packages="gotmPKG"
@@ -2502,10 +2734,25 @@
 			 description="GOTM: turbulent length scale defined at the cell center (horizontally) and top (vertically)"
 			 packages="gotmPKG"
 		/>
-                <!-- FIELDS FOR VERTICAL REMAPPING -->
+		<!-- FIELDS FOR VERTICAL REMAPPING -->
 		<var name="layerThicknessLag" type="real" dimensions="nVertLevels nCells Time" units="m"
 			 description="The layerThickness after the Lagrangian step, prior to remapping."
 			 packages="verticalRemapPKG"
+		/>
+                <!-- FIELDS FOR GEOMETRIC GM parameterization -->
+                <var name="totalParamEddyEnergy" type="real" dimensions="nCells Time" units="m^3 s^-2"
+                         description="The vertically integrated total parameterized eddy energy used in the GEOMETRIC GM parameterization option."
+                         missing_value="FILLVAL" missing_value_mask="cellMask"
+                         packages="gmGeometric"
+                />
+                <!-- FIELDS FOR SUBGIRD WETTING/DRYING -->
+		<var name="wetFractionCell" type="real" dimensions="nCells Time" units="m"
+			 description="Wet fraction for each cell"
+			 packages="subgridWetDryPKG"
+		/>
+		<var name="wetFractionEdge" type="real" dimensions="nEdges Time" units="m"
+			 description="Wet fraction for each edge"
+			 packages="subgridWetDryPKG"
 		/>
 	</var_struct>
 	<var_struct name="mesh" time_levs="1">
@@ -2742,7 +2989,7 @@
 		<var name="distanceToCoast" type="real" dimensions="nCells" units="m"
 			 description="Distance of each cell to nearest coastline cell."
 		/>
-                <!-- FIELDS FOR SUBGIRD WETTING AND DRYING-->
+		<!-- FIELDS FOR SUBGIRD WETTING AND DRYING-->
 		<var name="subgridWetVolumeCellTable" type="real" dimensions="nSubgridTableLevels nCells" units="m"
 			 description="Pre-computed wet volume per unit area for each cell at given ssh value"
 			 packages="subgridWetDryPKG"
@@ -2803,6 +3050,18 @@
 			 description="Pre-computed wet fraction for each edge at given ssh value"
 			 packages="subgridWetDryPKG"
 		/>
+		<var name="subgridSshDragEdgeTableRange" type="real" dimensions="R3 nEdges" units="m"
+			 description="Range of ssh values used for edge drag lookup table"
+			 packages="subgridWetDryPKG"
+		/>
+		<var name="subgridDragEdgeTable" type="real" dimensions="nSubgridTableLevels nEdges" units="m"
+			 description="Pre-computed drag coefficient for each edge at given ssh value"
+			 packages="subgridWetDryPKG"
+		/>
+		<var name="subgridEdgeArea" type="real" dimensions="nEdges" units="radians^2"
+			 description="Area of triangular region between edge vertices and cell center on each side of edge"
+			 packages="subgridWetDryPKG"
+		/>
 	</var_struct>
 	<var_struct name="verticalMesh" time_levs="1">
 		<var name="restingThickness" type="real" dimensions="nVertLevels nCells" units="m"
@@ -2840,6 +3099,10 @@
 			 missing_value="FILLVAL" missing_value_mask="cellMask"
 			 packages="thicknessFilter"
 		/>
+                <var name="tendTotalParamEddyEnergy" type="real" dimensions="nCells Time" units="m^3 s^-3" name_in_code="totalParamEddyEnergy"
+                         description="time tendency of the vertically integrated total parameterized eddy energy"
+                         packages="gmGeometric"
+                />
 	</var_struct>
 	<var_struct name="diagnostics" time_levs="1">
 		<var name="xtime" type="text" dimensions="Time"
@@ -3074,6 +3337,11 @@
 			 missing_value="FILLVAL" missing_value_mask="vertexMask"
 			 packages="forwardMode;analysisMode"
 		/>
+		<!-- Input fields from initial condition for spatially variable upwinding -->
+		<var name="upwindFactor" type="real" dimensions="nEdges Time" units="1"
+			description="The fraction of horizontal advection that is upwinded. Range from 0 (centered) to 1 (fully upwind)"
+		/>
+
 
 		<var name="kineticEnergyCell" type="real" dimensions="nVertLevels nCells Time" units="m^2 s^-2"
 			 description="kinetic energy of horizontal velocity on cells"
@@ -3422,6 +3690,10 @@
 			 description="Rossby Radius, computed in GM routine for some settings"
 			 packages="gm"
 		/>
+                <var name="totalParamEddyEnergyTendOld" type="real" dimensions="nCells Time" units="m^3 s^-3"
+                        description="time tendency of the vertically integrated total parameterized eddy energy in GEOMETRIC GM paramterization"
+                        packages="gmGeometric"
+                />
 		<var name="surfaceFluxAttenuationCoefficient" type="real" dimensions="nCells Time" units="m"
 			description="The spatially-dependent length scale of exponential decay of surface fluxes. Fluxes are multiplied by $e^{z/\gamma}$, where this coefficient is $\gamma$."
 		/>
@@ -3461,6 +3733,10 @@
 			packages="topographicWaveDragPKG"
 		/>
 		<!-- diagnostic fields for land-ice fluxes -->
+		<var name="landIceDraftForSsh" type="real" dimensions="nCells Time" units="m"
+			description="The elevation of the interface between land ice and the ocean that is used to correct the SSH gradient passed to MPAS-SeaIce and may be used for wetting-and-drying."
+			packages="landIcePressurePKG"
+		/>
 		<var name="landIceFrictionVelocity" type="real" dimensions="nCells Time" units="m s^-1"
 			description="The friction velocity $u_*$ under land ice"
 			packages="landIceFluxesPKG"
@@ -3656,11 +3932,11 @@
 		/>
 		<!-- FIELD split_explicit AB2 time stepping -->
 		<var name="normalVelocityTendOld" type="real" dimensions="nVertLevels nEdges Time" units="m s^-2"
-                        description="time tendency of normal component of velocity at the previous time step used in the split-explicit AB2 time stepping"
+			description="time tendency of normal component of velocity at the previous time step used in the split-explicit AB2 time stepping"
 			packages="splitAB2TimeIntegrator"
 		/>
 		<var name="CoriolisTermOld" type="real" dimensions="nVertLevels nEdges Time" units="m s^-2"
-                        description="Coriolis term at the previous time step used in the split-explicit AB2 time stepping"
+			description="Coriolis term at the previous time step used in the split-explicit AB2 time stepping"
 			packages="splitAB2TimeIntegrator"
 		/>
 		<var name="layerThicknessCellWetDry" type="real" dimensions="nVertLevels nCells Time" units="m"
@@ -3824,7 +4100,7 @@
 			 description="Heat flux associated with Evaporation at cell centers sent to coupler. Positive into the ocean."
 		/>
 		<var name="seaIceTemperatureFlux" type="real" dimensions="nCells Time" units="C m s^-1"
-			 description="Heat flux associated with sea ice melt water at cell centers sent to coupler. Positive into the ocean."
+			 description="Heat flux associated with sea ice melt water at cell centers sent to coupler. Positive into the ocean. Currently always assigned a value of 0 because it is included in seaIceHeatFlux as assigned by Icepack"
 		/>
 		<var name="icebergTemperatureFlux" type="real" dimensions="nCells Time" units="C m s^-1"
 			 description="Heat flux associated with iceberg melt at cell centers sent to coupler. Positive into the ocean."
@@ -3900,7 +4176,43 @@
 			 description="Fresh water flux from snow at cell centers from coupler. Positive into the ocean."
 			 packages="activeTracersBulkRestoringPKG;thicknessBulkPKG"
 		/>
-
+		<!-- Additional fields required for computing scaling factors to maintain water balance -->
+		<var name="nAccumulatedfwFlux" type="integer" dimensions="Time"
+			 description="Number of accumulations in time averaging of surface water fluxes"
+			 packages="scaledSFWFPKG"
+		/>
+		<var name="avgprecFlux" type="real" dimensions="Time" units="kg s^-1"
+			 description="The yearly mean, area integrated value of precipitation flux (rain+snow)."
+			 packages="scaledSFWFPKG"
+		/>
+		<var name="avgfwFlux" type="real" dimensions="Time" units="kg s^-1"
+			 description="The yearly mean, area integrated value of freshwater flux (ssh inferred)."
+			 packages="scaledSFWFPKG"
+		/>
+		<var name="SSHinitial" type="real" dimensions="Time" units="kg"
+			 description="The total water mass inferred from sea surface height anomalies at the beginning of a year."
+			 packages="scaledSFWFPKG"
+		/>
+		<var name="SSHfinal" type="real" dimensions="Time" units="kg"
+			 description="The total water mass inferred from sea surface height anomalies at the end of a year."
+			 packages="scaledSFWFPKG"
+		/>
+		<var name="totalAccumulatedprecFluxHistory" type="real" dimensions="nAccumulatedSFWFHistory Time" units="kg"
+			 description="The history of accumulated total precipitation fluxes(rain+snow), used to compute a running mean."
+			 packages="scaledSFWFPKG"
+		/>
+		<var name="totalAccumulatedfwFluxHistory" type="real" dimensions="nAccumulatedSFWFHistory Time" units="kg"
+			 description="The history of accumulated freshwater fluxes, used to compute a running mean."
+			 packages="scaledSFWFPKG"
+		/>
+		<var name="nValidTotalfwFluxHistory" type="integer" dimensions="Time"
+			 description="The number of valid days used for computing the surface water balance."
+			 packages="scaledSFWFPKG"
+		/>
+		<var name="SFWFScalingFactor" type="real" dimensions="Time" units="fractional"
+			 description="The scaling factor of surface freshwater flux, derived over the nValidTotalfwFluxHistory valid entries"
+			 packages="scaledSFWFPKG"
+		/>
 
 		<!-- Misc. coupling fields -->
 		<var name="iceFraction" type="real" dimensions="nCells Time" units="fractional"
@@ -3909,8 +4221,11 @@
 		<var name="windSpeed10m" type="real" dimensions="nCells Time" units="m s^-1"
 			 description="Wind speed at 10 meter."
 		/>
+	    <var name="ekeCorrection" type="real" dimensions="nEdges Time" units="m s^-2"
+			 description="Correction for high res FOSI runs"
+		/>
 
-                <!-- Waves coupling fields -->
+        <!-- Waves coupling fields -->
 		<var name="stokesDriftZonal" type="real" dimensions="nVertLevels nCells Time" units="m s^-1"
 			 description="Zonal component of the wave-induced Stokes drift current."
 			 packages="activeWavePKG"
@@ -3938,6 +4253,42 @@
 		<var name="peakWaveDirection" type="real" dimensions="nCells Time" units="degree"
 			 description="Direction of peak of wave spectrum"
 			 packages="activeWavePKG"
+	        />
+		 <var name="charnockSeaState" type="real" dimensions="nCells Time" units=""
+                         description="Charnock coeff accounting for the wave stress (Janssen 1989, 1991)"
+                         packages="activeWavePKG"
+                />
+		 <var name="z0wav" type="real" dimensions="nCells Time" units="m"
+                         description="surface Roughness length accounting for the wave state"
+                         packages="activeWavePKG"
+                />
+		 <var name="ustarwav" type="real" dimensions="nCells Time" units=""
+                         description="Friction Velocity from Wave model "
+                         packages="activeWavePKG"
+                />
+                <var name="waveSupportedZonalWindStress" type="real" dimensions="nCells Time" units="N m^{-2}"
+                         description="Zonal Wave supported stress (Stress from atmosphere to waves)"
+                         packages="activeWavePKG"
+                />
+                <var name="waveSupportedMeridionalWindStress" type="real" dimensions="nCells Time" units="N m^{-2}"
+                         description="Meridional Wave supported stress (Stress from atmosphere to waves)"
+                         packages="activeWavePKG"
+                />
+                <var name="waveToOceanZonalWindStress" type="real" dimensions="nCells Time" units="N m^{-2}"
+                         description="Zonal Wave to ocean stress"
+                         packages="activeWavePKG"
+                />
+                <var name="waveToOceanMeridionalWindStress" type="real" dimensions="nCells Time" units="N m^{-2}"
+                         description="Meridional Wave to ocean stress"
+                         packages="activeWavePKG"
+                />
+                <var name="waveNetOceanZonalWindStress" type="real" dimensions="nCells Time" units="N m^{-2}"
+                         description="Zonal Net ocean wind stress by wave model"
+                         packages="activeWavePKG"
+                />
+                <var name="waveNetOceanMeridionalWindStress" type="real" dimensions="nCells Time" units="N m^{-2}"
+                         description="Meridional Net ocean wind stress by wave model"
+                         packages="activeWavePKG"
 		/>
 		<var name="langmuirNumber" type="real" dimensions="nCells Time" units="m"
 			 description="Projected surface layer averaged Langmuir number from Van Roekel et al. 2012."
@@ -3958,18 +4309,18 @@
 		/>
 		<var_array name="avgTracersSurfaceValue" type="real" dimensions="nCells Time" packages="forwardMode;analysisMode">
 			<var name="avgTemperatureSurfaceValue" array_group="surfaceValues" units="C"
-				 description="Time averaged potential temperature extrapolated to ocean surface"
+				 description="Time averaged potential temperature in the uppermost active level as determined by minLevelCell"
 			/>
 			<var name="avgSalinitySurfaceValue" array_group="surfaceValues" units="1.e-3"
-				 description="Time averaged salinity extrapolated to ocean surface"
+				 description="Time averaged salinity in the uppermost active level as determined by minLevelCell"
 			/>
 		</var_array>
 		<var_array name="avgSurfaceVelocity" type="real" dimensions="nCells Time" packages="forwardMode;analysisMode">
 			<var name="avgSurfaceVelocityZonal" array_group="vel_zonal" units="m s^-1"
-				 description="Time averaged zonal surface velocity"
+				 description="Time averaged zonal surface velocity located in minLevelCell"
 			/>
 			<var name="avgSurfaceVelocityMeridional" array_group="vel_meridional" units="m s^-1"
-				 description="Time averaged meridional surface velocity"
+				 description="Time averaged meridional surface velocity located in minLevelCell"
 			/>
 		</var_array>
 		<var_array name="avgSSHGradient" type="real" dimensions="nCells Time" packages="forwardMode;analysisMode">
@@ -3984,7 +4335,7 @@
 			 description="Sum of heat fluxes associated with water fluxes cell centers sent to coupler. Positive into the ocean."
 		/>
 		<var name="avgLandIceFreshwaterFlux" type="real" dimensions="nCells Time" units="kg m^-2 s^-1"
-		         description="Time-averaged sum of freshwater fluxes associated with ice shelf basal melt fluxes cell centers sent to coupler. Positive into the ocean."
+			 description="Time-averaged sum of freshwater fluxes associated with ice shelf basal melt fluxes cell centers sent to coupler. Positive into the ocean."
 		/>
 		<var name="avgLandIceHeatFlux" type="real" dimensions="nCells Time" units="W m^-2"
 			 description="Time-averaged sum of heat fluxes associated with ice shelf basal melt fluxes cell centers sent to coupler. Positive into the ocean."
@@ -3994,7 +4345,7 @@
 		/>
 		<var name="avgRemovedIceRunoffFlux" type="real" dimensions="nCells Time" units="kg m^-2 s^-1"
 			 description="Time-averaged sum of freshwater fluxes associated with removed ice runoff fluxes cell centers sent to coupler. Positive into the ocean."
-	        />
+		/>
 		<var name="avgRemovedIceRunoffHeatFlux" type="real" dimensions="nCells Time" units="W m^-2"
 			 description="Time-averaged sum of heat fluxes associated with removed ice runoff fluxes cell centers sent to coupler. Positive into the ocean."
 		/>
@@ -4096,7 +4447,7 @@
 		/>
 		<var name="areaIntegAnnMeanDataIcebergIceShelfFreshwaterFlux"  type="real" dimensions="Time" units="kg s^-1"
 			description="The area integrated, annually averaged freshwater flux into the ocean from both data icebergs and ice-shelf melting."
-			packages="scaledDISMFPKG"
+			packages="scaledDISMFPKG;dataLandIceFluxesPKG"
 		/>
 
 		<!-- Input fields for forcing due to tides -->
@@ -4213,7 +4564,7 @@
 			 description="Multiplication factors to smooth ssh at coastlines for SAL caculation"
 			 packages="tidalPotentialForcingPKG"
 		/>
-               	<var name="forcingTimeIncrement" type="real" dimensions="" units="s"
+		<var name="forcingTimeIncrement" type="real" dimensions="" units="s"
 			description="Time increment to compute forcing terms at intermediate time intervals"
 			packages="forwardMode"
 		/>
