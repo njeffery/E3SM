@@ -1083,6 +1083,10 @@
 					description="maximum fraction of layer thickness than can be used or created at an instant by frazil."
 					possible_values="Any positive real number between 0 and 1."
 		/>
+		<nml_option name="config_use_accumulated_frazil_heat" type="logical" default_value=".false."
+					description="If true, use the heat accumulated from frazil ice formation, otherwise use the latent heat."
+					possible_values=".true. or .false."
+		/>
 		<nml_option name="config_specific_heat_sea_water" type="real" default_value="3985.0" units="J kg^-1 C^-1"
 					description="Energy per kilogram per C needed to raise ocean temperature 1 C. NOTE: test and make consistent with E3SM."
 					possible_values="Any positive real number."
