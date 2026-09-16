@@ -601,12 +601,8 @@ contains
 
             if (config_use_frazil_ice_formation) then
                do iCell = 1, nCellsSolve
-                  ! Frazil ice mass is negative. Negative coefficient makes heat
-                  ! flux positive, because freezing ice releases heat.
-                  !sumArray(10) = sumArray(10) - areaCell(iCell) * config_frazil_heat_of_fusion &
-                  !               * (accumulatedFrazilIceMassNew(iCell) - accumulatedFrazilIceMassOld(iCell))/dt
                   sumArray(10) = sumArray(10) - areaCell(iCell) &
-                                  * (accumulatedFrazilIceEnergyNew(iCell) - accumulatedFrazilIceEnergyOld(iCell))/dt                        
+                                  * (accumulatedFrazilIceEnergyNew(iCell) - accumulatedFrazilIceEnergyOld(iCell))/dt
                enddo
             end if
 
@@ -620,8 +616,6 @@ contains
                call mpas_pool_get_array(statePool, 'accumulatedLandIceFrazilMass', accumulatedLandIceFrazilMassOld, 1)
                call mpas_pool_get_array(statePool, 'accumulatedLandIceFrazilMass', accumulatedLandIceFrazilMassNew, 2)
                do iCell = 1, nCellsSolve
-                  ! Frazil ice mass is negative. Negative coefficient makes heat
-                  ! flux positive, because freezing ice releases heat.
                   sumArray(18) = sumArray(18) - areaCell(iCell) * config_frazil_heat_of_fusion &
                                  * (accumulatedLandIceFrazilMassNew(iCell) - accumulatedLandIceFrazilMassOld(iCell))/dt
                enddo
