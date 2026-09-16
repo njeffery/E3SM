@@ -3394,7 +3394,7 @@ contains
              if ( accumulatedFrazilIceMass(i) > 0.0_RKIND .and. index_o2x_Fioo_frazilh /= 0) then
 
                 seaIceEnergy(i) = accumulatedFrazilIceMass(i) * config_frazil_heat_of_fusion
-                if (config_use_accumulated_frazil_heat) then
+                if (config_use_accumulated_frazil_energy) then
                    o2x_o(index_o2x_Fioo_frazilh, n) = accumulatedFrazilIceEnergy(i)/ ocn_cpl_dt
                 else
                    o2x_o(index_o2x_Fioo_frazilh, n) = seaIceEnergy(i) / ocn_cpl_dt
