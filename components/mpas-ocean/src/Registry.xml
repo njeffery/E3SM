@@ -1084,7 +1084,7 @@
 					possible_values="Any positive real number between 0 and 1."
 		/>
 		<nml_option name="config_use_accumulated_frazil_heat" type="logical" default_value=".false."
-					description="If true, use the heat accumulated from frazil ice formation, otherwise use the latent heat."
+					description="If true, send the total energy accumulated from frazil ice formation to the sea ice model, otherwise use the latent heat."
 					possible_values=".true. or .false."
 		/>
 		<nml_option name="config_specific_heat_sea_water" type="real" default_value="3985.0" units="J kg^-1 C^-1"
