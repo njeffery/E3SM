@@ -1708,9 +1708,9 @@ Valid values: Any positive real number between 0 and 1.
 Default: Defined in namelist_defaults.xml
 </entry>
 
-<entry id="config_use_accumulated_frazil_heat" type="logical"
+<entry id="config_use_accumulated_frazil_energy" type="logical"
 	category="frazil_ice" group="frazil_ice">
-If true, use the heat accumulated from frazil ice formation, otherwise use the latent heat.
+If true, send the total energy accumulated from frazil ice formation to the sea ice model, otherwise use the latent heat.
 
 Valid values: .true. or .false.
 Default: Defined in namelist_defaults.xml

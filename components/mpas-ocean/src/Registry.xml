@@ -1083,7 +1083,7 @@
 					description="maximum fraction of layer thickness than can be used or created at an instant by frazil."
 					possible_values="Any positive real number between 0 and 1."
 		/>
-		<nml_option name="config_use_accumulated_frazil_heat" type="logical" default_value=".false."
+		<nml_option name="config_use_accumulated_frazil_energy" type="logical" default_value=".false."
 					description="If true, send the total energy accumulated from frazil ice formation to the sea ice model, otherwise use the latent heat."
 					possible_values=".true. or .false."
 		/>
