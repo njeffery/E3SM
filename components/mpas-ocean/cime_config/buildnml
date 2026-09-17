@@ -1474,7 +1474,6 @@ def buildnml(case, caseroot, compname):
                 lines.append('    <var name="riverFluxSiO3"/>')
                 lines.append('    <var name="riverFluxPO4"/>')
                 lines.append('    <var name="riverFluxFe"/>')
-                lines.append('    <var name="riverFluxNH4"/>')
                 lines.append('    <var name="ecosys_diag_photoC_TOT_zint"/>')
                 lines.append('    <var name="ecosys_diag_O2_ZMIN"/>')
                 lines.append('    <var name="ecosys_diag_O2_ZMIN_DEPTH"/>')

@@ -273,7 +273,7 @@ contains
     use hybrid_mod, only : hybrid_t
 #ifdef _MPI
     use parallel_mod, only: mpi_max, mpiinteger_t
-    use mpi, only: MPI_Allreduce
+!    use mpi, only: MPI_Allreduce
 #endif
     use parallel_mod, only: abortmp
 
@@ -284,7 +284,9 @@ contains
 
     ! Local variables
     integer ierr, k
-
+#ifdef _MPI
+    external :: MPI_Allreduce
+#endif
     if (len>red%len) call abortmp('ERROR: threadsafe reduction buffer too small')
 
     !$OMP BARRIER
@@ -321,7 +323,7 @@ contains
     use hybrid_mod, only : hybrid_t
 #ifdef _MPI
     use parallel_mod, only: mpi_max, mpireal_t
-    use mpi, only: MPI_Allreduce
+!    use mpi, only: MPI_Allreduce
 #endif
     use parallel_mod, only: abortmp
 
@@ -332,6 +334,9 @@ contains
 
     ! Local variables
     integer ierr, k
+#ifdef _MPI
+    external :: MPI_Allreduce
+#endif
 
     if (len>red%len) call abortmp('ERROR: threadsafe reduction buffer too small')
 
@@ -372,7 +377,7 @@ contains
     use hybrid_mod, only : hybrid_t
 #ifdef _MPI
     use parallel_mod, only: mpi_maxloc, mpi2real_t
-    use mpi, only: MPI_Allreduce
+!    use mpi, only: MPI_Allreduce
 #endif
 
     real (kind=real_kind), intent(inout) :: redp(2) ! thread private vector of partial sum
@@ -380,7 +385,9 @@ contains
 
     ! Local variables
     integer ierr
-
+#ifdef _MPI
+    external :: MPI_Allreduce
+#endif
     !$OMP BARRIER
     ! the first and fastest thread performs initializing copy
     !$OMP SINGLE
@@ -418,7 +425,7 @@ contains
     use hybrid_mod, only : hybrid_t
 #ifdef _MPI
     use parallel_mod, only: mpi_minloc, mpi2real_t
-    use mpi, only: MPI_Allreduce
+!    use mpi, only: MPI_Allreduce
 #endif
 
     real (kind=real_kind), intent(inout) :: redp(2) ! thread private vector of partial sum
@@ -426,7 +433,9 @@ contains
 
     ! Local variables
     integer ierr
-
+#ifdef _MPI
+    external :: MPI_Allreduce
+#endif
     !$OMP BARRIER
     ! the first and fastest thread performs initializing copy
     !$OMP SINGLE
@@ -468,7 +477,7 @@ contains
     use hybrid_mod, only : hybrid_t
 #ifdef _MPI
     use parallel_mod, only: mpi_min, mpireal_t
-    use mpi, only: MPI_Allreduce
+!    use mpi, only: MPI_Allreduce
 #endif
     use parallel_mod, only: abortmp
 
@@ -479,7 +488,9 @@ contains
 
     ! Local variables
     integer ierr, k
-
+#ifdef _MPI
+    external :: MPI_Allreduce
+#endif
     if (len>red%len) call abortmp('ERROR: threadsafe reduction buffer too small')
 
     !$OMP BARRIER
@@ -520,7 +531,7 @@ contains
     use hybrid_mod, only : hybrid_t
 #ifdef _MPI
     use parallel_mod, only: mpi_sum, mpiinteger_t
-    use mpi, only: MPI_Allreduce
+!    use mpi, only: MPI_Allreduce
 #endif
     use parallel_mod, only: abortmp
 
@@ -531,7 +542,9 @@ contains
 
     ! Local variables
     integer ierr, k
-
+#ifdef _MPI
+    external :: MPI_Allreduce
+#endif
     if (len>red%len) call abortmp('ERROR: threadsafe reduction buffer too small')
 
     !$OMP BARRIER
@@ -564,7 +577,7 @@ contains
     use hybrid_mod, only : hybrid_t
 #ifdef _MPI
   use parallel_mod, only : ORDERED, mpireal_t, mpi_min, mpi_max, mpi_sum, mpi_success
-  use mpi, only: MPI_Barrier, MPI_Allreduce, MPI_Error_String
+  use mpi, only: MPI_Barrier, MPI_Error_String
 #else
   use dimensions_mod, only : nelem
   use parallel_mod, only : ORDERED
@@ -600,6 +613,7 @@ contains
 
     real(kind=real_kind)             :: local_sum
     integer                          :: ierr
+    external :: MPI_Allreduce
 #endif
 
 #ifdef _MPI
