@@ -1,7 +1,4 @@
-git add cime_config/config_files.xml \
-        cime_config/machines/config_machines.xml \
-        cime_config/machines/cmake_macros/mac_gnu.cmake
-git commit -m "local(mac): machine config and netcdf path overrides"! Copyright (c) 2013,  Los Alamos National Security, LLC (LANS)
+! Copyright (c) 2013,  Los Alamos National Security, LLC (LANS)
 ! and the University Corporation for Atmospheric Research (UCAR).
 !
 ! Unless noted otherwise source code is licensed under the BSD license.
