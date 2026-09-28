@@ -7,6 +7,9 @@
   <entry id="MODEL">
     <type>char</type>
     <default_value>e3sm</default_value>
+    <values>
+      <value>e3sm</value>
+    </values>
     <group>case_der</group>
     <file>env_case.xml</file>
     <desc>model system name</desc>
@@ -19,6 +22,9 @@
   <entry id="CASEFILE_HEADERS">
     <type>char</type>
     <default_value>$CIMEROOT/CIME/data/config/config_headers.xml</default_value>
+    <values>
+      <value>$CIMEROOT/CIME/data/config/config_headers.xml</value>
+    </values>
     <group>case_der</group>
     <file>env_case.xml</file>
     <desc>contains both header and group information for all the case env_*.xml files </desc>
@@ -27,6 +33,9 @@
   <entry id="BATCH_SPEC_FILE">
     <type>char</type>
     <default_value>$SRCROOT/cime_config/machines/config_batch.xml</default_value>
+    <values>
+      <value>$SRCROOT/cime_config/machines/config_batch.xml</value>
+    </values>
     <group>case_last</group>
     <file>env_case.xml</file>
     <desc>file containing batch system details for target system  (for documentation only - DO NOT EDIT)</desc>
@@ -36,6 +45,9 @@
   <entry id="WORKFLOW_SPEC_FILE">
     <type>char</type>
     <default_value>$SRCROOT/cime_config/machines/config_workflow.xml</default_value>
+    <values>
+      <value>$SRCROOT/cime_config/machines/config_workflow.xml</value>
+    </values>
     <group>case_last</group>
     <file>env_case.xml</file>
     <desc>file containing workflow (for documentation only - DO NOT EDIT)</desc>
@@ -45,6 +57,9 @@
   <entry id="INPUTDATA_SPEC_FILE">
     <type>char</type>
     <default_value>$SRCROOT/cime_config/config_inputdata.xml</default_value>
+    <values>
+      <value>$SRCROOT/cime_config/config_inputdata.xml</value>
+    </values>
     <group>case_last</group>
     <file>env_case.xml</file>
     <desc>file containing inputdata server descriptions  (for documentation only - DO NOT EDIT)</desc>
@@ -55,6 +70,9 @@
   <entry id="GRIDS_SPEC_FILE">
     <type>char</type>
     <default_value>$SRCROOT/cime_config/config_grids.xml</default_value>
+    <values>
+      <value>$SRCROOT/cime_config/config_grids.xml</value>
+    </values>
     <group>case_last</group>
     <file>env_case.xml</file>
     <desc>file containing specification of all supported model grids, domains and mapping files (for documentation only - DO NOT EDIT)</desc>
@@ -63,6 +81,9 @@
   <entry id="COMPILERS_SPEC_FILE">
     <type>char</type>
     <default_value>$SRCROOT/cime_config/machines/config_compilers.xml</default_value>
+    <values>
+      <value>$SRCROOT/cime_config/machines/config_compilers.xml</value>
+    </values>
     <group>case_last</group>
     <file>env_case.xml</file>
     <desc>file containing compiler specifications for target model primary component (for documentation only - DO NOT EDIT)</desc>
@@ -72,6 +93,9 @@
   <entry id="CMAKE_MACROS_DIR">
     <type>char</type>
     <default_value>$SRCROOT/cime_config/machines/cmake_macros</default_value>
+    <values>
+      <value>$SRCROOT/cime_config/machines/cmake_macros</value>
+    </values>
     <group>case_last</group>
     <file>env_case.xml</file>
     <desc>Directory containing cmake macros (for documentation only - DO NOT EDIT)</desc>
@@ -80,6 +104,9 @@
   <entry id="MACHINES_SPEC_FILE">
     <type>char</type>
     <default_value>$SRCROOT/cime_config/machines/config_machines.xml</default_value>
+    <values>
+      <value>$SRCROOT/cime_config/machines/config_machines.xml</value>
+    </values>
     <group>case_last</group>
     <file>env_case.xml</file>
     <desc>file containing machine specifications for target model primary component (for documentation only - DO NOT EDIT)</desc>
@@ -89,6 +116,9 @@
   <entry id="PIO_SPEC_FILE">
     <type>char</type>
     <default_value>$SRCROOT/cime_config/machines/config_pio.xml</default_value>
+    <values>
+      <value>$SRCROOT/cime_config/machines/config_pio.xml</value>
+    </values>
     <group>case_last</group>
     <file>env_case.xml</file>
     <desc>file containing specification of pio settings for target model possible machine, compiler, mpilib, compset and/or grid attributes (for documentation only - DO NOT EDIT)</desc>
@@ -339,6 +369,9 @@
   <entry id="TESTS_SPEC_FILE">
     <type>char</type>
     <default_value>unset</default_value>
+    <values>
+      <value>unset</value>
+    </values>
     <group>case_last</group>
     <file>env_case.xml</file>
     <desc>file containing specification of all system tests for primary component (for documentation only - DO NOT EDIT)</desc>
