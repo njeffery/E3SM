@@ -5,6 +5,7 @@ Namelist creator for E3SM's MPAS OCEAN component
 """
 
 import os, sys
+import re
 
 _CIMEROOT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..","..","..","cime")
 sys.path.append(os.path.join(_CIMEROOT, "scripts", "Tools"))
@@ -15,6 +16,52 @@ from CIME.utils import expect, run_cmd_no_fail, safe_copy
 from CIME.buildnml import create_namelist_infile, parse_input
 
 logger = logging.getLogger(__name__)
+
+###############################################################################
+def _read_namelist_logical_value(namelist_path, option_name, default=False):
+###############################################################################
+    value = default
+    pattern = re.compile(r"^\s*{}\s*=\s*([^!,\s]+)".format(re.escape(option_name)), re.IGNORECASE)
+
+    if not os.path.exists(namelist_path):
+        return value
+
+    with open(namelist_path, "r") as fd:
+        for line in fd:
+            match = pattern.search(line)
+            if match:
+                token = match.group(1).strip().lower()
+                if token in (".true.", "true", "t"):
+                    value = True
+                elif token in (".false.", "false", "f"):
+                    value = False
+    return value
+
+###############################################################################
+def _append_sediment_aux_output(lines, include_debug_fields):
+###############################################################################
+    lines.append('    <var name="bottomStressCellSediment"/>')
+    lines.append('    <var name="sedimentBedMass1"/>')
+    lines.append('    <var name="sedimentBedMass2"/>')
+    lines.append('    <var name="sedimentBedMass3"/>')
+    lines.append('    <var name="sedimentSettlingFlux1"/>')
+    lines.append('    <var name="sedimentSettlingFlux2"/>')
+    lines.append('    <var name="sedimentSettlingFlux3"/>')
+    lines.append('    <var name="sedimentErosionFlux1"/>')
+    lines.append('    <var name="sedimentErosionFlux2"/>')
+    lines.append('    <var name="sedimentErosionFlux3"/>')
+
+    if include_debug_fields:
+        lines.append('    <var name="sedimentDebugCellMask"/>')
+        lines.append('    <var_array name="sedimentDebugInitial"/>')
+        lines.append('    <var_array name="sedimentDebugPreAdvectionTendency"/>')
+        lines.append('    <var_array name="sedimentDebugAdvectionTendency"/>')
+        lines.append('    <var_array name="sedimentDebugHmixTendency"/>')
+        lines.append('    <var_array name="sedimentDebugSurfaceFluxTendency"/>')
+        lines.append('    <var_array name="sedimentDebugNonLocalTendency"/>')
+        lines.append('    <var_array name="sedimentDebugOtherTendency"/>')
+        lines.append('    <var_array name="sedimentDebugTotalTendency"/>')
+        lines.append('    <var_array name="sedimentDebugFinal"/>')
 
 ###############################################################################
 def buildnml(case, caseroot, compname):
@@ -556,6 +603,14 @@ def buildnml(case, caseroot, compname):
 
         run_cmd_no_fail(sysmod, from_dir=mpasoconf_dir)
 
+        sediment_debug_enabled = False
+        if ocn_sediment == 'true':
+            sediment_debug_enabled = _read_namelist_logical_value(
+                os.path.join(mpasoconf_dir, "mpaso_in"),
+                "config_sediment_debug",
+                default=False
+            )
+
         # -----------------------------------------------------
         # Copy resolved namelist to $RUNDIR
         # -----------------------------------------------------
@@ -681,7 +736,7 @@ def buildnml(case, caseroot, compname):
             if  ocn_sediment == 'true':
                 lines.append('    <var_array name="sedimentTracers"/>')
                 lines.append('    <var_array name="sedimentTracersSurfaceFlux"/>')
-                lines.append('    <var_struct name="sedimentAuxiliary"/>')
+                _append_sediment_aux_output(lines, sediment_debug_enabled)
             lines.append('</stream>')
             lines.append('')
             lines.append('<!--')
@@ -1005,7 +1060,7 @@ def buildnml(case, caseroot, compname):
             if  ocn_sediment == 'true':
                 lines.append('    <var_array name="sedimentTracers"/>')
                 lines.append('    <var_array name="sedimentTracersSurfaceFlux"/>')
-                lines.append('    <var_struct name="sedimentAuxiliary"/>')
+                _append_sediment_aux_output(lines, sediment_debug_enabled)
             lines.append('</stream>')
             lines.append('')
             lines.append('<stream name="mixedLayerDepthsOutput"')
@@ -1298,7 +1353,7 @@ def buildnml(case, caseroot, compname):
             if  ocn_sediment == 'true':
                 lines.append('    <var_array name="sedimentTracers"/>')
                 lines.append('    <var_array name="sedimentTracersSurfaceFlux"/>')
-                lines.append('    <var_struct name="sedimentAuxiliary"/>')
+                _append_sediment_aux_output(lines, sediment_debug_enabled)
             lines.append('</stream>')
             lines.append('')
             lines.append('<stream name="timeSeriesStatsMonthlyOutput"')
@@ -1539,7 +1594,7 @@ def buildnml(case, caseroot, compname):
                 lines.append('    <var name="ecosys_diag_co3_sat_calc"/>')
                 lines.append('    <var name="ecosys_diag_co3_sat_arag"/>')
             if  ocn_sediment == 'true':
-                lines.append('    <var_struct name="sedimentAuxiliary"/>')
+                _append_sediment_aux_output(lines, sediment_debug_enabled)
             lines.append('</stream>')
             lines.append('')
             lines.append('<stream name="timeSeriesStatsMonthlyMaxOutput"')

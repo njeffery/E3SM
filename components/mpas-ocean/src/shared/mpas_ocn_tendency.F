@@ -609,6 +609,7 @@ contains
          tracersPool,            &! tracer variables
          tracersTendPool,        &! tracer tendencies
          tracersSurfaceFluxPool, &! surface fluxes
+         sedimentAuxiliaryPool,  &! sediment debug diagnostics
          ecosysFrazilForcingPool, & ! ecosys tracers frazil tendencies
          tracersSurfaceRestoringFieldsPool, &! surface restoring
          tracersInteriorRestoringFieldsPool,&! interior restoring
@@ -630,7 +631,10 @@ contains
          config_use_tracerGroup_interior_restoring,   &
          config_use_tracerGroup_exponential_decay,    &
          config_use_tracerGroup_idealAge_forcing,     &
-         config_use_tracerGroup_ttd_forcing
+         config_use_tracerGroup_ttd_forcing,          &
+         config_sediment_debug
+
+      integer, pointer :: config_sediment_debug_cell
 
       real (kind=RKIND), dimension(:), pointer, contiguous :: &
          penetrativeTemperatureFlux, &! heat flux penetrating below sfc
@@ -640,7 +644,8 @@ contains
          tracerGroupPistonVelocity,        &! forcing piston velocity
          tracerGroupSurfaceRestoringValue, &! restore sfc to this value
          tracerGroupIdealAgeMask,          &! mask to reset ideal age
-         tracerGroupTTDMask                 ! mask for TTD values
+         tracerGroupTTDMask,               &! mask for TTD values
+         sedimentDebugCellMask             ! selected sediment debug cell
 
       real (kind=RKIND), dimension(:,:), pointer, contiguous :: &
          layerThickness,               &! layer thickness
@@ -651,7 +656,7 @@ contains
          tracerGroupSurfaceFluxRunoff, &! runoff flux
          tracerGroupSurfaceFluxSubglacialRunoff, &! subglacial runoff flux
          tracerGroupSurfaceFluxRemoved,&! total sfc flux absorbed
-         nonLocalSurfaceTracerFlux      ! non-local fluxes (eg KPP)
+         nonLocalSurfaceTracerFlux     ! non-local fluxes (eg KPP)
 
       real (kind=RKIND), dimension(:,:,:), pointer, contiguous :: &
          tracerGroup,     &! tracers in current tracer group
@@ -659,13 +664,25 @@ contains
          activeTracers,   &! retain active tracers
          ecosysTracers,   &! retain ecosys tracers for DMS, MacroMols
          tracerGroupInteriorRestoringRate, &! int restoring timescale 
-         tracerGroupInteriorRestoringValue  ! int restoring value
+         tracerGroupInteriorRestoringValue, &! int restoring value
+         sedimentDebugInitial, &
+         sedimentDebugPreAdvectionTendency, &
+         sedimentDebugAdvectionTendency, &
+         sedimentDebugHmixTendency, &
+         sedimentDebugSurfaceFluxTendency, &
+         sedimentDebugNonLocalTendency, &
+         sedimentDebugOtherTendency, &
+         sedimentDebugTotalTendency, &
+         sedimentDebugFinal
 
       ! Scratch Arrays
       real (kind=RKIND), dimension(:,:), allocatable :: &
-         normalThicknessFlux ! Flux of thickness through edge (m^2/s)
+         normalThicknessFlux, &! Flux of thickness through edge (m^2/s)
+         sedimentDebugPrevTend
       integer, parameter :: num_fields = 8
       logical, dimension(:), allocatable :: skipTracer
+      logical :: sedimentDebugActive
+      integer :: sedimentDebugCell, nSedimentDebugTracers
       character(len=20), dimension(num_fields) :: &
             fieldNames = [character(len=20) :: &
                           'rain', 'snow', &
@@ -843,6 +860,53 @@ contains
          call mpas_pool_get_array(tracersSurfaceFluxPool, &
                                   modifiedGroupName, &
                                   tracerGroupSurfaceFlux)
+
+         sedimentDebugActive = .false.
+         sedimentDebugCell = 0
+         nSedimentDebugTracers = min(3, nTracersGroup)
+         if (groupName == 'sedimentTracers') then
+            call mpas_pool_get_config(ocnConfigs, 'config_sediment_debug', &
+                                      config_sediment_debug)
+            if (config_sediment_debug) then
+               sedimentDebugActive = .true.
+               call mpas_pool_get_config(ocnConfigs, 'config_sediment_debug_cell', &
+                                         config_sediment_debug_cell)
+               call mpas_pool_get_subpool(forcingPool, 'sedimentAuxiliary', &
+                                          sedimentAuxiliaryPool)
+               call mpas_pool_get_array(sedimentAuxiliaryPool, 'sedimentDebugCellMask', &
+                                        sedimentDebugCellMask)
+               call mpas_pool_get_array(sedimentAuxiliaryPool, 'sedimentDebugInitial', &
+                                        sedimentDebugInitial)
+               call mpas_pool_get_array(sedimentAuxiliaryPool, &
+                                        'sedimentDebugPreAdvectionTendency', &
+                                        sedimentDebugPreAdvectionTendency)
+               call mpas_pool_get_array(sedimentAuxiliaryPool, &
+                                        'sedimentDebugAdvectionTendency', &
+                                        sedimentDebugAdvectionTendency)
+               call mpas_pool_get_array(sedimentAuxiliaryPool, &
+                                        'sedimentDebugHmixTendency', &
+                                        sedimentDebugHmixTendency)
+               call mpas_pool_get_array(sedimentAuxiliaryPool, &
+                                        'sedimentDebugSurfaceFluxTendency', &
+                                        sedimentDebugSurfaceFluxTendency)
+               call mpas_pool_get_array(sedimentAuxiliaryPool, &
+                                        'sedimentDebugNonLocalTendency', &
+                                        sedimentDebugNonLocalTendency)
+               call mpas_pool_get_array(sedimentAuxiliaryPool, &
+                                        'sedimentDebugOtherTendency', &
+                                        sedimentDebugOtherTendency)
+               call mpas_pool_get_array(sedimentAuxiliaryPool, &
+                                        'sedimentDebugTotalTendency', &
+                                        sedimentDebugTotalTendency)
+               call mpas_pool_get_array(sedimentAuxiliaryPool, 'sedimentDebugFinal', &
+                                        sedimentDebugFinal)
+               call mpas_pool_get_array(meshPool, 'latCell', latCell)
+               call mpas_pool_get_array(meshPool, 'lonCell', lonCell)
+
+               sedimentDebugCell = config_sediment_debug_cell
+            end if
+         end if
+
          allocate(skipTracer(nTracersGroup))
          skipTracer(:) = .false.
          if ( groupName == 'freshwaterTracers' ) then
@@ -886,6 +950,32 @@ contains
                                   modifiedGroupName, &
                                   tracerGroupSurfaceFluxRemoved)
 
+         if (sedimentDebugActive) then
+            call ocn_select_sediment_debug_cell(nCellsAll, sedimentDebugCell, &
+                                                maxLevelCell, latCell, lonCell, &
+                                                tracerGroupSurfaceFluxRunoff, &
+                                                sedimentDebugCell)
+
+            if (sedimentDebugCell >= 1 .and. sedimentDebugCell <= nCellsAll) then
+               allocate(sedimentDebugPrevTend(nSedimentDebugTracers, nVertLevels))
+               sedimentDebugPrevTend(:,:) = 0.0_RKIND
+               call mpas_log_write('sediment debug diagnostics active at cell $i', &
+                                   intArgs=(/sedimentDebugCell/))
+            else
+               sedimentDebugCellMask(:,1) = 0.0_RKIND
+               sedimentDebugInitial(:,:,:) = 0.0_RKIND
+               sedimentDebugPreAdvectionTendency(:,:,:) = 0.0_RKIND
+               sedimentDebugAdvectionTendency(:,:,:) = 0.0_RKIND
+               sedimentDebugHmixTendency(:,:,:) = 0.0_RKIND
+               sedimentDebugSurfaceFluxTendency(:,:,:) = 0.0_RKIND
+               sedimentDebugNonLocalTendency(:,:,:) = 0.0_RKIND
+               sedimentDebugOtherTendency(:,:,:) = 0.0_RKIND
+               sedimentDebugTotalTendency(:,:,:) = 0.0_RKIND
+               sedimentDebugFinal(:,:,:) = 0.0_RKIND
+               sedimentDebugActive = .false.
+            end if
+         end if
+
          !
          ! initialize tracer surface fluxes and tendencies to zero.
          !
@@ -921,6 +1011,28 @@ contains
          end do
          !$omp end do
          !$omp end parallel
+         end if
+
+         if (sedimentDebugActive) then
+            sedimentDebugCellMask(:,1) = 0.0_RKIND
+            sedimentDebugCellMask(sedimentDebugCell,1) = 1.0_RKIND
+
+            sedimentDebugInitial(:,:,:) = 0.0_RKIND
+            sedimentDebugPreAdvectionTendency(:,:,:) = 0.0_RKIND
+            sedimentDebugAdvectionTendency(:,:,:) = 0.0_RKIND
+            sedimentDebugHmixTendency(:,:,:) = 0.0_RKIND
+            sedimentDebugSurfaceFluxTendency(:,:,:) = 0.0_RKIND
+            sedimentDebugNonLocalTendency(:,:,:) = 0.0_RKIND
+            sedimentDebugOtherTendency(:,:,:) = 0.0_RKIND
+            sedimentDebugTotalTendency(:,:,:) = 0.0_RKIND
+            sedimentDebugFinal(:,:,:) = 0.0_RKIND
+
+            do n = 1, nSedimentDebugTracers
+            do k = 1, nVertLevels
+               sedimentDebugInitial(n, k, sedimentDebugCell) = &
+                  tracerGroup(n, k, sedimentDebugCell)
+            end do
+            end do
          end if
 
          !
@@ -1024,13 +1136,11 @@ contains
          if ( groupName == 'sedimentTracers' ) then
             call ocn_tracer_sediment_tend(statePool, forcingPool, meshPool, &
                                           tracerGroup, tracerGroupTend, &
-                                          kineticEnergyCell, layerThickEdgeDrag, &
-                                          layerThickness, dt, timeLevel,    &
-                                          nCellsOwned, err)
+                                          layerThickness, dt, timeLevel, err)
 
             call ocn_tracer_sediment_surface_flux_compute(tracerGroup, forcingPool,  &
-                                           nCellsOwned, tracerGroupSurfaceFlux, &
-                                           err)
+                                                          nCellsOwned, tracerGroupSurfaceFlux, &
+                                                          err)
          endif ! sediment
 
          !
@@ -1219,6 +1329,16 @@ contains
             call mpas_timer_stop("TTD " // groupName)
          endif ! TTD
 
+         if (sedimentDebugActive) then
+            do n = 1, nSedimentDebugTracers
+            do k = 1, nVertLevels
+               sedimentDebugPreAdvectionTendency(n, k, sedimentDebugCell) = &
+                  tracerGroupTend(n, k, sedimentDebugCell)
+               sedimentDebugPrevTend(n, k) = tracerGroupTend(n, k, sedimentDebugCell)
+            end do
+            end do
+         end if
+
          !$acc enter data &
          !$acc    copyin(tracerGroup, tracerGroupTend)
 
@@ -1242,6 +1362,17 @@ contains
          !$acc exit data &
          !$acc    copyout(tracerGroupTend) &
          !$acc    delete(tracerGroup)
+
+         if (sedimentDebugActive) then
+            do n = 1, nSedimentDebugTracers
+            do k = 1, nVertLevels
+               sedimentDebugAdvectionTendency(n, k, sedimentDebugCell) = &
+                  tracerGroupTend(n, k, sedimentDebugCell) - &
+                  sedimentDebugPrevTend(n, k)
+               sedimentDebugPrevTend(n, k) = tracerGroupTend(n, k, sedimentDebugCell)
+            end do
+            end do
+         end if
 
          !
          ! Add horizontal tracer diffusion,
@@ -1291,6 +1422,17 @@ contains
             !$omp end parallel
          endif ! compute budgets
 
+         if (sedimentDebugActive) then
+            do n = 1, nSedimentDebugTracers
+            do k = 1, nVertLevels
+               sedimentDebugHmixTendency(n, k, sedimentDebugCell) = &
+                  tracerGroupTend(n, k, sedimentDebugCell) - &
+                  sedimentDebugPrevTend(n, k)
+               sedimentDebugPrevTend(n, k) = tracerGroupTend(n, k, sedimentDebugCell)
+            end do
+            end do
+         end if
+
          !
          ! convert the surface tracer flux into a tracer tendency by
          ! distributing the flux across some number of surface layers
@@ -1321,6 +1463,17 @@ contains
                 call ocn_tracer_surface_flux_tend_subglacial_runoff(meshPool, fractionAbsorbedSubglacialRunoff, &
                                layerThickness, tracerGroupSurfaceFluxSubglacialRunoff,  &
                                tracerGroupTend, err)
+         end if
+
+         if (sedimentDebugActive) then
+            do n = 1, nSedimentDebugTracers
+            do k = 1, nVertLevels
+               sedimentDebugSurfaceFluxTendency(n, k, sedimentDebugCell) = &
+                  tracerGroupTend(n, k, sedimentDebugCell) - &
+                  sedimentDebugPrevTend(n, k)
+               sedimentDebugPrevTend(n, k) = tracerGroupTend(n, k, sedimentDebugCell)
+            end do
+            end do
          end if
 
          !
@@ -1422,10 +1575,38 @@ contains
             call mpas_timer_stop("non-local flux from KPP")
          end if ! KPP
 
+         if (sedimentDebugActive) then
+            do n = 1, nSedimentDebugTracers
+            do k = 1, nVertLevels
+               sedimentDebugNonLocalTendency(n, k, sedimentDebugCell) = &
+                  tracerGroupTend(n, k, sedimentDebugCell) - &
+                  sedimentDebugPrevTend(n, k)
+               sedimentDebugPrevTend(n, k) = tracerGroupTend(n, k, sedimentDebugCell)
+            end do
+            end do
+         end if
+
          ! Compute tracer tendency due to production/destruction of
          ! frazil ice
          call ocn_frazil_forcing_tracers(meshPool, tracersPool, &
                      groupName, forcingPool, tracerGroupTend, ecosysFrazilForcingPool, err)
+
+         if (sedimentDebugActive) then
+            do n = 1, nSedimentDebugTracers
+            do k = 1, nVertLevels
+               sedimentDebugOtherTendency(n, k, sedimentDebugCell) = &
+                  tracerGroupTend(n, k, sedimentDebugCell) - &
+                  sedimentDebugPrevTend(n, k)
+               sedimentDebugTotalTendency(n, k, sedimentDebugCell) = &
+                  tracerGroupTend(n, k, sedimentDebugCell)
+               sedimentDebugFinal(n, k, sedimentDebugCell) = &
+                  sedimentDebugInitial(n, k, sedimentDebugCell) + &
+                  dt * tracerGroupTend(n, k, sedimentDebugCell)
+            end do
+            end do
+
+            deallocate(sedimentDebugPrevTend)
+         end if
 
 
       end if ! config use flag on
@@ -1442,6 +1623,78 @@ contains
    !--------------------------------------------------------------------
 
    end subroutine ocn_tend_tracer!}}}
+
+!***********************************************************************
+!
+!  routine ocn_select_sediment_debug_cell
+!
+!> \brief   Select the sediment debug column
+!> \details Uses an explicitly requested cell when provided. Otherwise it
+!>  attempts to choose a runoff-receiving cell in an Ob-mouth Arctic sector
+!>  and falls back to the nearest wet cell to the Ob mouth location.
+!
+!-----------------------------------------------------------------------
+
+   subroutine ocn_select_sediment_debug_cell(nCells, requestedCell, &
+                                             maxLevelCellIn, latCellIn, lonCellIn, &
+                                             tracerGroupSurfaceFluxRunoff, selectedCell)
+
+      integer, intent(in) :: nCells, requestedCell
+      integer, dimension(:), intent(in) :: maxLevelCellIn
+      real (kind=RKIND), dimension(:), intent(in) :: latCellIn, lonCellIn
+      real (kind=RKIND), dimension(:,:), intent(in) :: tracerGroupSurfaceFluxRunoff
+      integer, intent(out) :: selectedCell
+
+      integer :: iCell
+      real (kind=RKIND) :: bestRunoff, bestDist2, dist2, dlon
+      real (kind=RKIND) :: latDeg, lonDeg
+      real (kind=RKIND), parameter :: deg2rad = 0.017453292519943295_RKIND
+      real (kind=RKIND), parameter :: obLat = 66.6_RKIND * deg2rad
+      real (kind=RKIND), parameter :: obLon = 71.3_RKIND * deg2rad
+      real (kind=RKIND), parameter :: minLat = 60.0_RKIND
+      real (kind=RKIND), parameter :: maxLat = 78.0_RKIND
+      real (kind=RKIND), parameter :: minLon = 55.0_RKIND
+      real (kind=RKIND), parameter :: maxLon = 95.0_RKIND
+
+      selectedCell = 0
+      if (requestedCell >= 1 .and. requestedCell <= nCells) then
+         if (maxLevelCellIn(requestedCell) > 0) then
+            selectedCell = requestedCell
+            return
+         end if
+      end if
+
+      bestRunoff = -1.0_RKIND
+      do iCell = 1, nCells
+         if (maxLevelCellIn(iCell) <= 0) cycle
+
+         latDeg = latCellIn(iCell) / deg2rad
+         lonDeg = modulo(lonCellIn(iCell) / deg2rad + 360.0_RKIND, 360.0_RKIND)
+         if (latDeg >= minLat .and. latDeg <= maxLat .and. &
+             lonDeg >= minLon .and. lonDeg <= maxLon) then
+            if (tracerGroupSurfaceFluxRunoff(1, iCell) > bestRunoff) then
+               bestRunoff = tracerGroupSurfaceFluxRunoff(1, iCell)
+               selectedCell = iCell
+            end if
+         end if
+      end do
+      if (selectedCell > 0 .and. bestRunoff > 0.0_RKIND) return
+
+      bestDist2 = huge(1.0_RKIND)
+      do iCell = 1, nCells
+         if (maxLevelCellIn(iCell) <= 0) cycle
+         dlon = abs(lonCellIn(iCell) - obLon)
+         if (dlon > 3.14159265358979323846_RKIND) then
+            dlon = 6.28318530717958647692_RKIND - dlon
+         end if
+         dist2 = (latCellIn(iCell) - obLat)**2 + dlon**2
+         if (dist2 < bestDist2) then
+            bestDist2 = dist2
+            selectedCell = iCell
+         end if
+      end do
+
+   end subroutine ocn_select_sediment_debug_cell
 
 !***********************************************************************
 !

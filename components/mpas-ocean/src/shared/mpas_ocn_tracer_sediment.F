@@ -1,7 +1,4 @@
-git add cime_config/config_files.xml \
-        cime_config/machines/config_machines.xml \
-        cime_config/machines/cmake_macros/mac_gnu.cmake
-git commit -m "local(mac): machine config and netcdf path overrides"! Copyright (c) 2013,  Los Alamos National Security, LLC (LANS)
+! Copyright (c) 2013,  Los Alamos National Security, LLC (LANS)
 ! and the University Corporation for Atmospheric Research (UCAR).
 !
 ! Unless noted otherwise source code is licensed under the BSD license.
@@ -379,29 +376,30 @@ module ocn_tracer_sediment
 !
 !-----------------------------------------------------------------------
 
-   subroutine ocn_tracer_sediment_surface_flux_compute(domain, timeLevel, err)!{{{
+   subroutine ocn_tracer_sediment_surface_flux_compute(sedimentTracers, forcingPool, &
+                                                       nCellsOwned, sedimentSurfaceFlux, &
+                                                       err)!{{{
 
-      type (domain_type), intent(inout) :: domain !< Input/Output: domain
-      integer, intent(in)  :: timeLevel           !< Input: time level
+      type (mpas_pool_type), intent(in) :: forcingPool
+      integer, intent(in) :: nCellsOwned
       integer, intent(out) :: err                 !< Output: error flag
 
-      !-----------------------------------------------------------------
-      ! local variables
-      !-----------------------------------------------------------------
+      real (kind=RKIND), dimension(:,:,:), intent(in) :: &
+         sedimentTracers
 
-      type (mpas_pool_type), pointer :: forcingPool
-      type (mpas_pool_type), pointer :: tracersSurfaceFluxPool
-      real (kind=RKIND), dimension(:,:), pointer :: sedimentSurfaceFlux
+      real (kind=RKIND), dimension(:,:), intent(inout) :: &
+         sedimentSurfaceFlux
+
+      integer :: iCell, iClass
 
       err = 0
 
-      call mpas_pool_get_subpool(domain % blocklist % structs, 'forcing', forcingPool)
-      call mpas_pool_get_subpool(forcingPool, 'tracersSurfaceFlux', tracersSurfaceFluxPool)
-      call mpas_pool_get_array(tracersSurfaceFluxPool, 'sedimentTracersSurfaceFlux', &
-                               sedimentSurfaceFlux)
-
       ! Zero surface fluxes; Phase 3 will add river and ice-ocean contributions
-      sedimentSurfaceFlux(:,:) = 0.0_RKIND
+      do iCell = 1, nCellsOwned
+      do iClass = 1, nSedimentClasses
+         sedimentSurfaceFlux(iClass, iCell) = 0.0_RKIND
+      end do
+      end do
 
    end subroutine ocn_tracer_sediment_surface_flux_compute!}}}
 
