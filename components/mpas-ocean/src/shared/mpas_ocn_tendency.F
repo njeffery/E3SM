@@ -691,6 +691,7 @@ contains
       real (kind=RKIND), dimension(:), allocatable :: docrDebugPrevTend
       logical :: docrDebugActive
       integer :: docrDebugCell
+      integer :: nDocrDebugCells
       ! NJ-Sed
       integer :: sinkTracer
       real( kind=RKIND) :: sinkingRate
@@ -881,6 +882,7 @@ contains
          sinkingRate = 0.0_RKIND
          docrDebugActive = .false.
          docrDebugCell = 0
+         nDocrDebugCells = 0
 
          allocate(skipTracer(nTracersGroup))
          skipTracer(:) = .false.
@@ -918,6 +920,7 @@ contains
                                          config_docr_debug_cell)
                call mpas_pool_get_array(ecosysAuxiliaryPool, 'docrDebugCellMask', &
                                         docrDebugCellMask)
+               nDocrDebugCells = size(docrDebugCellMask, dim=1)
                call mpas_pool_get_array(ecosysAuxiliaryPool, 'docrDebugInitial', &
                                         docrDebugInitial)
                call mpas_pool_get_array(ecosysAuxiliaryPool, &
@@ -974,16 +977,18 @@ contains
                                   tracerGroupSurfaceFluxRemoved)
 
          if (docrDebugActive) then
-            call ocn_select_docr_debug_cell(nCellsAll, docrDebugCell, maxLevelCell, &
+            call ocn_select_docr_debug_cell(nDocrDebugCells, docrDebugCell, maxLevelCell, &
                                             latCell, lonCell, &
                                             tracerGroupSurfaceFluxRunoff(sinkTracer, :), &
                                             docrDebugCell)
-            if (docrDebugCell >= 1 .and. docrDebugCell <= nCellsAll) then
+            if (docrDebugCell >= 1 .and. docrDebugCell <= nDocrDebugCells) then
                allocate(docrDebugPrevTend(nVertLevels))
                docrDebugPrevTend(:) = 0.0_RKIND
                call mpas_log_write('DOCr debug diagnostics active at cell $i', &
                                    intArgs=(/docrDebugCell/))
             else
+               call mpas_log_write('DOCr debug diagnostics disabled on this block: invalid debug cell $i', &
+                                   intArgs=(/docrDebugCell/))
                docrDebugCellMask(:,1) = 0.0_RKIND
                docrDebugInitial(:,:,:) = 0.0_RKIND
                docrDebugPreAdvectionTendency(:,:,:) = 0.0_RKIND
