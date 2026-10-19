@@ -669,6 +669,8 @@ add_default($nl, 'config_use_sedimentTracers_interior_restoring');
 add_default($nl, 'config_use_sedimentTracers_exponential_decay');
 add_default($nl, 'config_use_sedimentTracers_idealAge_forcing');
 add_default($nl, 'config_use_sedimentTracers_ttd_forcing');
+add_default($nl, 'config_sediment_debug');
+add_default($nl, 'config_sediment_debug_cell');
 
 ####################################################
 # Namelist group: tracer_forcing_freshwaterTracers #

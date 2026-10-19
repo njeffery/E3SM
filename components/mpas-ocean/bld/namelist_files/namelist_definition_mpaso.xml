@@ -3489,6 +3489,22 @@ Valid values: .true. or .false.
 Default: Defined in namelist_defaults.xml
 </entry>
 
+<entry id="config_sediment_debug" type="logical"
+	category="tracer_forcing_sedimentTracers_idealAge_forcing" group="tracer_forcing_sedimentTracers">
+if true, write sediment debug diagnostics for one selected column
+
+Valid values: .true. or .false.
+Default: Defined in namelist_defaults.xml
+</entry>
+
+<entry id="config_sediment_debug_cell" type="integer"
+	category="tracer_forcing_sedimentTracers_idealAge_forcing" group="tracer_forcing_sedimentTracers">
+Cell index for sediment debug diagnostics; <=0 selects a default Ob River mouth column
+
+Valid values: any integer
+Default: Defined in namelist_defaults.xml
+</entry>
+
 <!-- tracer_forcing_freshwaterTracers -->
 
 <entry id="config_use_freshwaterTracers" type="logical"
