@@ -43,6 +43,14 @@
 			description="if true, transit time distribution forcing source is applied to tracers in 'ecosysGRP' category"
 			possible_values=".true. or .false."
 		/>
+		<nml_option name="config_docr_debug" type="logical" default_value=".false." units="unitless"
+			description="if true, write DOCr debug diagnostics for one selected column"
+			possible_values=".true. or .false."
+		/>
+		<nml_option name="config_docr_debug_cell" type="integer" default_value="0" units="unitless"
+			description="Cell index for DOCr debug diagnostics; <=0 selects a default Ob River mouth column"
+			possible_values="any integer"
+		/>
 		<nml_option name="config_use_ecosysTracers_surface_value" type="logical" default_value=".false." units="unitless"
 			description="if true, surface value is computed for 'ecosysGRP' category"
 			possible_values=".true. or .false."
@@ -725,6 +733,36 @@
 			/>
 			<var name="netErosionFlux" type="real" dimensions="nCells Time" units="kg m^{-3} m s^{-1}"
 				description="Erosion flux from the sea floor to the ocean bottom"
+			/>
+			<var name="docrDebugCellMask" type="real" dimensions="nCells Time" units="unitless"
+				description="Mask for the selected DOCr debug column (1.0 at selected cell, 0.0 elsewhere)"
+			/>
+			<var name="docrDebugInitial" type="real" dimensions="nVertLevels nCells Time" units="mmol C m^{-3}"
+				description="Initial DOCr column field at the debug cell"
+			/>
+			<var name="docrDebugPreAdvectionTendency" type="real" dimensions="nVertLevels nCells Time" units="mmol C m^{-3} s^{-1}"
+				description="DOCr tendency accumulated before advection at the debug cell"
+			/>
+			<var name="docrDebugAdvectionTendency" type="real" dimensions="nVertLevels nCells Time" units="mmol C m^{-3} s^{-1}"
+				description="DOCr advection tendency increment at the debug cell"
+			/>
+			<var name="docrDebugHmixTendency" type="real" dimensions="nVertLevels nCells Time" units="mmol C m^{-3} s^{-1}"
+				description="DOCr horizontal-mixing tendency increment at the debug cell"
+			/>
+			<var name="docrDebugSurfaceFluxTendency" type="real" dimensions="nVertLevels nCells Time" units="mmol C m^{-3} s^{-1}"
+				description="DOCr surface-flux tendency increment at the debug cell"
+			/>
+			<var name="docrDebugNonLocalTendency" type="real" dimensions="nVertLevels nCells Time" units="mmol C m^{-3} s^{-1}"
+				description="DOCr non-local KPP tendency increment at the debug cell"
+			/>
+			<var name="docrDebugOtherTendency" type="real" dimensions="nVertLevels nCells Time" units="mmol C m^{-3} s^{-1}"
+				description="DOCr residual tendency increment after named terms at the debug cell"
+			/>
+			<var name="docrDebugTotalTendency" type="real" dimensions="nVertLevels nCells Time" units="mmol C m^{-3} s^{-1}"
+				description="DOCr final accumulated tendency at the debug cell"
+			/>
+			<var name="docrDebugFinal" type="real" dimensions="nVertLevels nCells Time" units="mmol C m^{-3}"
+				description="DOCr estimated end-of-step field (initial + dt*tendency) at the debug cell"
 			/>
 			<var name="FESEDFLUX" type="real" dimensions="nVertLevels nCells Time" units="mmol Fe m^{-3} m s^{-1}"
 				description="Sedimentary Fe Flux"

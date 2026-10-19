@@ -801,6 +801,8 @@
 <config_use_ecosysTracers_exponential_decay>.false.</config_use_ecosysTracers_exponential_decay>
 <config_use_ecosysTracers_idealAge_forcing>.false.</config_use_ecosysTracers_idealAge_forcing>
 <config_use_ecosysTracers_ttd_forcing>.false.</config_use_ecosysTracers_ttd_forcing>
+<config_docr_debug>.false.</config_docr_debug>
+<config_docr_debug_cell>0</config_docr_debug_cell>
 <config_use_ecosysTracers_surface_value>.false.</config_use_ecosysTracers_surface_value>
 <config_use_ecosysTracers_river_inputs_from_coupler>.false.</config_use_ecosysTracers_river_inputs_from_coupler>
 <config_use_ecosys_frazil_tendencies>.false.</config_use_ecosys_frazil_tendencies>

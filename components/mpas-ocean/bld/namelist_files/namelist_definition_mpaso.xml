@@ -3239,6 +3239,22 @@ Valid values: .true. or .false.
 Default: Defined in namelist_defaults.xml
 </entry>
 
+<entry id="config_docr_debug" type="logical"
+	category="tracer_forcing_ecosysTracers" group="tracer_forcing_ecosysTracers">
+if true, write DOCr debug diagnostics for one selected column
+
+Valid values: .true. or .false.
+Default: Defined in namelist_defaults.xml
+</entry>
+
+<entry id="config_docr_debug_cell" type="integer"
+	category="tracer_forcing_ecosysTracers" group="tracer_forcing_ecosysTracers">
+Cell index for DOCr debug diagnostics; <=0 selects a default Ob River mouth column
+
+Valid values: any integer
+Default: Defined in namelist_defaults.xml
+</entry>
+
 <entry id="config_use_ecosysTracers_surface_value" type="logical"
 	category="tracer_forcing_ecosysTracers" group="tracer_forcing_ecosysTracers">
 if true, surface value is computed for 'ecosysGRP' category

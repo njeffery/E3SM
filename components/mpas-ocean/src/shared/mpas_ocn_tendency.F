@@ -630,7 +630,10 @@ contains
          config_use_tracerGroup_interior_restoring,   &
          config_use_tracerGroup_exponential_decay,    &
          config_use_tracerGroup_idealAge_forcing,     &
-         config_use_tracerGroup_ttd_forcing
+         config_use_tracerGroup_ttd_forcing,          &
+         config_docr_debug
+
+      integer, pointer :: config_docr_debug_cell
 
       real (kind=RKIND), dimension(:), pointer, contiguous :: &
          penetrativeTemperatureFlux, &! heat flux penetrating below sfc
@@ -640,7 +643,8 @@ contains
          tracerGroupPistonVelocity,        &! forcing piston velocity
          tracerGroupSurfaceRestoringValue, &! restore sfc to this value
          tracerGroupIdealAgeMask,          &! mask to reset ideal age
-         tracerGroupTTDMask                 ! mask for TTD values
+         tracerGroupTTDMask,               &! mask for TTD values
+         docrDebugCellMask
 
       real (kind=RKIND), dimension(:,:), pointer, contiguous :: &
          layerThickness,               &! layer thickness
@@ -659,7 +663,16 @@ contains
          activeTracers,   &! retain active tracers
          ecosysTracers,   &! retain ecosys tracers for DMS, MacroMols
          tracerGroupInteriorRestoringRate, &! int restoring timescale 
-         tracerGroupInteriorRestoringValue  ! int restoring value
+         tracerGroupInteriorRestoringValue, &! int restoring value
+         docrDebugInitial, &
+         docrDebugPreAdvectionTendency, &
+         docrDebugAdvectionTendency, &
+         docrDebugHmixTendency, &
+         docrDebugSurfaceFluxTendency, &
+         docrDebugNonLocalTendency, &
+         docrDebugOtherTendency, &
+         docrDebugTotalTendency, &
+         docrDebugFinal
 
       real (kind=RKIND), dimension(:), pointer, contiguous :: &
          sedimentBottomFlux, & ! kg/m2/s
@@ -675,6 +688,9 @@ contains
          normalThicknessFlux ! Flux of thickness through edge (m^2/s)
       integer, parameter :: num_fields = 8
       logical, dimension(:), allocatable :: skipTracer
+      real (kind=RKIND), dimension(:), allocatable :: docrDebugPrevTend
+      logical :: docrDebugActive
+      integer :: docrDebugCell
       ! NJ-Sed
       integer :: sinkTracer
       real( kind=RKIND) :: sinkingRate
@@ -863,6 +879,8 @@ contains
 
          sinkTracer = 0
          sinkingRate = 0.0_RKIND
+         docrDebugActive = .false.
+         docrDebugCell = 0
 
          allocate(skipTracer(nTracersGroup))
          skipTracer(:) = .false.
@@ -891,6 +909,39 @@ contains
             !Velocities(mm/s):         .1 ; 1.0 ; 15; 90; 1000.  
             sinkTracer = indexTracer
             sinkingRate =  -0.001_RKIND   ! m/s
+
+            call mpas_pool_get_config(ocnConfigs, 'config_docr_debug', &
+                                      config_docr_debug)
+            if (config_docr_debug) then
+               docrDebugActive = .true.
+               call mpas_pool_get_config(ocnConfigs, 'config_docr_debug_cell', &
+                                         config_docr_debug_cell)
+               call mpas_pool_get_array(ecosysAuxiliaryPool, 'docrDebugCellMask', &
+                                        docrDebugCellMask)
+               call mpas_pool_get_array(ecosysAuxiliaryPool, 'docrDebugInitial', &
+                                        docrDebugInitial)
+               call mpas_pool_get_array(ecosysAuxiliaryPool, &
+                                        'docrDebugPreAdvectionTendency', &
+                                        docrDebugPreAdvectionTendency)
+               call mpas_pool_get_array(ecosysAuxiliaryPool, &
+                                        'docrDebugAdvectionTendency', &
+                                        docrDebugAdvectionTendency)
+               call mpas_pool_get_array(ecosysAuxiliaryPool, 'docrDebugHmixTendency', &
+                                        docrDebugHmixTendency)
+               call mpas_pool_get_array(ecosysAuxiliaryPool, &
+                                        'docrDebugSurfaceFluxTendency', &
+                                        docrDebugSurfaceFluxTendency)
+               call mpas_pool_get_array(ecosysAuxiliaryPool, &
+                                        'docrDebugNonLocalTendency', &
+                                        docrDebugNonLocalTendency)
+               call mpas_pool_get_array(ecosysAuxiliaryPool, 'docrDebugOtherTendency', &
+                                        docrDebugOtherTendency)
+               call mpas_pool_get_array(ecosysAuxiliaryPool, 'docrDebugTotalTendency', &
+                                        docrDebugTotalTendency)
+               call mpas_pool_get_array(ecosysAuxiliaryPool, 'docrDebugFinal', &
+                                        docrDebugFinal)
+               docrDebugCell = config_docr_debug_cell
+            endif
          endif
 
          ! Get Array of total surface temp/salt flux 
@@ -921,6 +972,31 @@ contains
          call mpas_pool_get_array(tracersSurfaceFluxPool, &
                                   modifiedGroupName, &
                                   tracerGroupSurfaceFluxRemoved)
+
+         if (docrDebugActive) then
+            call ocn_select_docr_debug_cell(nCellsAll, docrDebugCell, maxLevelCell, &
+                                            latCell, lonCell, &
+                                            tracerGroupSurfaceFluxRunoff(sinkTracer, :), &
+                                            docrDebugCell)
+            if (docrDebugCell >= 1 .and. docrDebugCell <= nCellsAll) then
+               allocate(docrDebugPrevTend(nVertLevels))
+               docrDebugPrevTend(:) = 0.0_RKIND
+               call mpas_log_write('DOCr debug diagnostics active at cell $i', &
+                                   intArgs=(/docrDebugCell/))
+            else
+               docrDebugCellMask(:,1) = 0.0_RKIND
+               docrDebugInitial(:,:,:) = 0.0_RKIND
+               docrDebugPreAdvectionTendency(:,:,:) = 0.0_RKIND
+               docrDebugAdvectionTendency(:,:,:) = 0.0_RKIND
+               docrDebugHmixTendency(:,:,:) = 0.0_RKIND
+               docrDebugSurfaceFluxTendency(:,:,:) = 0.0_RKIND
+               docrDebugNonLocalTendency(:,:,:) = 0.0_RKIND
+               docrDebugOtherTendency(:,:,:) = 0.0_RKIND
+               docrDebugTotalTendency(:,:,:) = 0.0_RKIND
+               docrDebugFinal(:,:,:) = 0.0_RKIND
+               docrDebugActive = .false.
+            endif
+         endif
 
          !
          ! initialize tracer surface fluxes and tendencies to zero.
@@ -958,6 +1034,26 @@ contains
          !$omp end do
          !$omp end parallel
          end if
+
+         if (docrDebugActive) then
+            docrDebugCellMask(:,1) = 0.0_RKIND
+            docrDebugCellMask(docrDebugCell,1) = 1.0_RKIND
+
+            docrDebugInitial(:,:,:) = 0.0_RKIND
+            docrDebugPreAdvectionTendency(:,:,:) = 0.0_RKIND
+            docrDebugAdvectionTendency(:,:,:) = 0.0_RKIND
+            docrDebugHmixTendency(:,:,:) = 0.0_RKIND
+            docrDebugSurfaceFluxTendency(:,:,:) = 0.0_RKIND
+            docrDebugNonLocalTendency(:,:,:) = 0.0_RKIND
+            docrDebugOtherTendency(:,:,:) = 0.0_RKIND
+            docrDebugTotalTendency(:,:,:) = 0.0_RKIND
+            docrDebugFinal(:,:,:) = 0.0_RKIND
+
+            do k = 1, nVertLevels
+               docrDebugInitial(1, k, docrDebugCell) = &
+                  tracerGroup(sinkTracer, k, docrDebugCell)
+            enddo
+         endif
 
          !
          ! compute surface tracer flux from bulk forcing
@@ -1239,6 +1335,14 @@ contains
             call mpas_timer_stop("TTD " // groupName)
          endif ! TTD
 
+         if (docrDebugActive) then
+            do k = 1, nVertLevels
+               docrDebugPreAdvectionTendency(1, k, docrDebugCell) = &
+                  tracerGroupTend(sinkTracer, k, docrDebugCell)
+               docrDebugPrevTend(k) = tracerGroupTend(sinkTracer, k, docrDebugCell)
+            enddo
+         endif
+
          !$acc enter data &
          !$acc    copyin(tracerGroup, tracerGroupTend)
 
@@ -1282,6 +1386,14 @@ contains
          !$acc exit data &
          !$acc    copyout(tracerGroupTend) &
          !$acc    delete(tracerGroup)
+
+         if (docrDebugActive) then
+            do k = 1, nVertLevels
+               docrDebugAdvectionTendency(1, k, docrDebugCell) = &
+                  tracerGroupTend(sinkTracer, k, docrDebugCell) - docrDebugPrevTend(k)
+               docrDebugPrevTend(k) = tracerGroupTend(sinkTracer, k, docrDebugCell)
+            enddo
+         endif
 
          !
          ! Add horizontal tracer diffusion,
@@ -1331,6 +1443,14 @@ contains
             !$omp end parallel
          endif ! compute budgets
 
+         if (docrDebugActive) then
+            do k = 1, nVertLevels
+               docrDebugHmixTendency(1, k, docrDebugCell) = &
+                  tracerGroupTend(sinkTracer, k, docrDebugCell) - docrDebugPrevTend(k)
+               docrDebugPrevTend(k) = tracerGroupTend(sinkTracer, k, docrDebugCell)
+            enddo
+         endif
+
          !
          ! convert the surface tracer flux into a tracer tendency by
          ! distributing the flux across some number of surface layers
@@ -1362,6 +1482,14 @@ contains
                                layerThickness, tracerGroupSurfaceFluxSubglacialRunoff,  &
                                tracerGroupTend, err)
          end if
+
+         if (docrDebugActive) then
+            do k = 1, nVertLevels
+               docrDebugSurfaceFluxTendency(1, k, docrDebugCell) = &
+                  tracerGroupTend(sinkTracer, k, docrDebugCell) - docrDebugPrevTend(k)
+               docrDebugPrevTend(k) = tracerGroupTend(sinkTracer, k, docrDebugCell)
+            enddo
+         endif
 
          !
          ! Compute shortwave absorption
@@ -1462,10 +1590,31 @@ contains
             call mpas_timer_stop("non-local flux from KPP")
          end if ! KPP
 
+         if (docrDebugActive) then
+            do k = 1, nVertLevels
+               docrDebugNonLocalTendency(1, k, docrDebugCell) = &
+                  tracerGroupTend(sinkTracer, k, docrDebugCell) - docrDebugPrevTend(k)
+               docrDebugPrevTend(k) = tracerGroupTend(sinkTracer, k, docrDebugCell)
+            enddo
+         endif
+
          ! Compute tracer tendency due to production/destruction of
          ! frazil ice
          call ocn_frazil_forcing_tracers(meshPool, tracersPool, &
                      groupName, forcingPool, tracerGroupTend, ecosysFrazilForcingPool, err)
+
+         if (docrDebugActive) then
+            do k = 1, nVertLevels
+               docrDebugOtherTendency(1, k, docrDebugCell) = &
+                  tracerGroupTend(sinkTracer, k, docrDebugCell) - docrDebugPrevTend(k)
+               docrDebugTotalTendency(1, k, docrDebugCell) = &
+                  tracerGroupTend(sinkTracer, k, docrDebugCell)
+               docrDebugFinal(1, k, docrDebugCell) = &
+                  docrDebugInitial(1, k, docrDebugCell) + &
+                  dt * tracerGroupTend(sinkTracer, k, docrDebugCell)
+            enddo
+            deallocate(docrDebugPrevTend)
+         endif
 
 
       end if ! config use flag on
@@ -1482,6 +1631,73 @@ contains
    !--------------------------------------------------------------------
 
    end subroutine ocn_tend_tracer!}}}
+
+!***********************************************************************
+!
+!  routine ocn_select_docr_debug_cell
+!
+!> \brief   Select the DOCr debug column
+!
+!-----------------------------------------------------------------------
+
+   subroutine ocn_select_docr_debug_cell(nCells, requestedCell, maxLevelCellIn, &
+                                         latCellIn, lonCellIn, runoffFlux, selectedCell)
+
+      integer, intent(in) :: nCells, requestedCell
+      integer, dimension(:), intent(in) :: maxLevelCellIn
+      real (kind=RKIND), dimension(:), intent(in) :: latCellIn, lonCellIn
+      real (kind=RKIND), dimension(:), intent(in) :: runoffFlux
+      integer, intent(out) :: selectedCell
+
+      integer :: iCell
+      real (kind=RKIND) :: bestRunoff, bestDist2, dist2, dlon
+      real (kind=RKIND) :: latDeg, lonDeg
+      real (kind=RKIND), parameter :: deg2rad = 0.017453292519943295_RKIND
+      real (kind=RKIND), parameter :: obLat = 66.6_RKIND * deg2rad
+      real (kind=RKIND), parameter :: obLon = 71.3_RKIND * deg2rad
+      real (kind=RKIND), parameter :: minLat = 60.0_RKIND
+      real (kind=RKIND), parameter :: maxLat = 78.0_RKIND
+      real (kind=RKIND), parameter :: minLon = 55.0_RKIND
+      real (kind=RKIND), parameter :: maxLon = 95.0_RKIND
+
+      selectedCell = 0
+      if (requestedCell >= 1 .and. requestedCell <= nCells) then
+         if (maxLevelCellIn(requestedCell) > 0) then
+            selectedCell = requestedCell
+            return
+         endif
+      endif
+
+      bestRunoff = -1.0_RKIND
+      do iCell = 1, nCells
+         if (maxLevelCellIn(iCell) <= 0) cycle
+         latDeg = latCellIn(iCell) / deg2rad
+         lonDeg = modulo(lonCellIn(iCell) / deg2rad + 360.0_RKIND, 360.0_RKIND)
+         if (latDeg >= minLat .and. latDeg <= maxLat .and. &
+             lonDeg >= minLon .and. lonDeg <= maxLon) then
+            if (runoffFlux(iCell) > bestRunoff) then
+               bestRunoff = runoffFlux(iCell)
+               selectedCell = iCell
+            endif
+         endif
+      enddo
+      if (selectedCell > 0 .and. bestRunoff > 0.0_RKIND) return
+
+      bestDist2 = huge(1.0_RKIND)
+      do iCell = 1, nCells
+         if (maxLevelCellIn(iCell) <= 0) cycle
+         dlon = abs(lonCellIn(iCell) - obLon)
+         if (dlon > 3.14159265358979323846_RKIND) then
+            dlon = 6.28318530717958647692_RKIND - dlon
+         endif
+         dist2 = (latCellIn(iCell) - obLat)**2 + dlon**2
+         if (dist2 < bestDist2) then
+            bestDist2 = dist2
+            selectedCell = iCell
+         endif
+      enddo
+
+   end subroutine ocn_select_docr_debug_cell
 
 !***********************************************************************
 !

@@ -5,6 +5,7 @@ Namelist creator for E3SM's MPAS OCEAN component
 """
 
 import os, sys
+import re
 
 _CIMEROOT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..","..","..","cime")
 sys.path.append(os.path.join(_CIMEROOT, "scripts", "Tools"))
@@ -15,6 +16,26 @@ from CIME.utils import expect, run_cmd_no_fail, safe_copy
 from CIME.buildnml import create_namelist_infile, parse_input
 
 logger = logging.getLogger(__name__)
+
+###############################################################################
+def _read_namelist_logical_value(namelist_path, option_name, default=False):
+###############################################################################
+    value = default
+    pattern = re.compile(r"^\s*{}\s*=\s*([^!,\s]+)".format(re.escape(option_name)), re.IGNORECASE)
+
+    if not os.path.exists(namelist_path):
+        return value
+
+    with open(namelist_path, "r") as fd:
+        for line in fd:
+            match = pattern.search(line)
+            if match:
+                token = match.group(1).strip().lower()
+                if token in (".true.", "true", "t"):
+                    value = True
+                elif token in (".false.", "false", "f"):
+                    value = False
+    return value
 
 ###############################################################################
 def buildnml(case, caseroot, compname):
@@ -554,6 +575,14 @@ def buildnml(case, caseroot, compname):
 
         run_cmd_no_fail(sysmod, from_dir=mpasoconf_dir)
 
+        docr_debug_enabled = False
+        if ocn_bgc in ['eco_only', 'eco_and_dms', 'eco_and_macromolecules', 'eco_and_dms_and_macromolecules']:
+            docr_debug_enabled = _read_namelist_logical_value(
+                os.path.join(mpasoconf_dir, "mpaso_in"),
+                "config_docr_debug",
+                default=False
+            )
+
         # -----------------------------------------------------
         # Copy resolved namelist to $RUNDIR
         # -----------------------------------------------------
@@ -698,6 +727,17 @@ def buildnml(case, caseroot, compname):
             lines.append('    <var name="layerThickness"/>')
             lines.append('    <var name="normalVelocity"/>')
             lines.append('    <var name="ssh"/>')
+            if docr_debug_enabled:
+                lines.append('    <var name="docrDebugCellMask"/>')
+                lines.append('    <var name="docrDebugInitial"/>')
+                lines.append('    <var name="docrDebugPreAdvectionTendency"/>')
+                lines.append('    <var name="docrDebugAdvectionTendency"/>')
+                lines.append('    <var name="docrDebugHmixTendency"/>')
+                lines.append('    <var name="docrDebugSurfaceFluxTendency"/>')
+                lines.append('    <var name="docrDebugNonLocalTendency"/>')
+                lines.append('    <var name="docrDebugOtherTendency"/>')
+                lines.append('    <var name="docrDebugTotalTendency"/>')
+                lines.append('    <var name="docrDebugFinal"/>')
             lines.append('')
             lines.append('</stream>')
             lines.append('')
