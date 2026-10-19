@@ -132,15 +132,15 @@
 		<var_struct name="tracersTend" time_levs="1">
 			<var_array name="sedimentTracersTend" type="real" dimensions="nVertLevels nCells Time"
 				packages="sedimentTracersPKG" missing_value="FILLVAL" missing_value_mask="cellMask">
-				<var name="sediment1Tend" array_group="sedimentGRP"
+				<var name="sediment1Tend" array_group="sedimentTendGRP"
 					units="kg m^{-3} m s^{-1}"
 					description="Tendency of suspended sediment class 1"
 				/>
-				<var name="sediment2Tend" array_group="sedimentGRP"
+				<var name="sediment2Tend" array_group="sedimentTendGRP"
 					units="kg m^{-3} m s^{-1}"
 					description="Tendency of suspended sediment class 2"
 				/>
-				<var name="sediment3Tend" array_group="sedimentGRP"
+				<var name="sediment3Tend" array_group="sedimentTendGRP"
 					units="kg m^{-3} m s^{-1}"
 					description="Tendency of suspended sediment class 3"
 				/>
@@ -250,39 +250,39 @@
 		</var_struct>
 		<var_struct name="tracersExponentialDecayFields" time_levs="1">
 			<var_array name="sedimentTracersExponentialDecayRate" type="real" dimensions="Time" packages="sedimentTracersExponentialDecayPKG">
-				<var name="sediment1ExponentialDecayRate" array_group="sedimentGRP" units="s^-1"
+				<var name="sediment1ExponentialDecayRate" array_group="sedimentDecayGRP" units="s^-1"
 			 description="A non-negative field controlling the exponential decay of sediment1"
 				/>
-				<var name="sediment2ExponentialDecayRate" array_group="sedimentGRP" units="s^-1"
+				<var name="sediment2ExponentialDecayRate" array_group="sedimentDecayGRP" units="s^-1"
 			 description="A non-negative field controlling the exponential decay of sediment2"
 				/>
-				<var name="sediment3ExponentialDecayRate" array_group="sedimentGRP" units="s^-1"
+				<var name="sediment3ExponentialDecayRate" array_group="sedimentDecayGRP" units="s^-1"
 			 description="A non-negative field controlling the exponential decay of sediment3"
 				/>
 			</var_array>
 		</var_struct>
 		<var_struct name="tracersIdealAgeFields" time_levs="1">
 			<var_array name="sedimentTracersIdealAgeMask" type="real" dimensions="nCells Time" packages="sedimentTracersIdealAgePKG">
-				<var name="sediment1IdealAgeMask" array_group="sedimentGRP"
+				<var name="sediment1IdealAgeMask" array_group="sedimentIdealAgeGRP"
 			 description="In top layer, sediment1 is reset to sediment1 * sediment1IdealAgeMask, valid values of sediment1IdealAgeMask or 0 and 1"
 				/>
-				<var name="sediment2IdealAgeMask" array_group="sedimentGRP"
+				<var name="sediment2IdealAgeMask" array_group="sedimentIdealAgeGRP"
 			 description="In top layer, sediment2 is reset to sediment2 * sediment2IdealAgeMask, valid values of sediment2IdealAgeMask or 0 and 1"
 				/>
-				<var name="sediment3IdealAgeMask" array_group="sedimentGRP"
+				<var name="sediment3IdealAgeMask" array_group="sedimentIdealAgeGRP"
 			 description="In top layer, sediment3 is reset to sediment3 * sediment3IdealAgeMask, valid values of sediment3IdealAgeMask or 0 and 1"
 				/>
 			</var_array>
 		</var_struct>
 		<var_struct name="tracersTTDFields" time_levs="1">
 			<var_array name="sedimentTracersTTDMask" type="real" dimensions="nCells Time" packages="sedimentTracersTTDPKG">
-				<var name="sediment1TTDMask" array_group="sedimentGRP"
+				<var name="sediment1TTDMask" array_group="sedimentTTDGRP"
 			 description="In top layer, sediment1 is reset to TTDMask, valid values of sediment1TTDMask or 0 and 1"
 				/>
-				<var name="sediment2TTDMask" array_group="sedimentGRP"
+				<var name="sediment2TTDMask" array_group="sedimentTTDGRP"
 			 description="In top layer, sediment2 is reset to TTDMask, valid values of sediment2TTDMask or 0 and 1"
 				/>
-				<var name="sediment3TTDMask" array_group="sedimentGRP"
+				<var name="sediment3TTDMask" array_group="sedimentTTDGRP"
 			 description="In top layer, sediment3 is reset to TTDMask, valid values of sediment3TTDMask or 0 and 1"
 				/>
 			</var_array>

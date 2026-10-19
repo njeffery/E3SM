@@ -380,15 +380,11 @@ module ocn_tracer_sediment
                                                        nCellsOwned, sedimentSurfaceFlux, &
                                                        err)!{{{
 
+      real (kind=RKIND), dimension(:,:,:), intent(in) :: sedimentTracers
       type (mpas_pool_type), intent(in) :: forcingPool
-      integer, intent(in) :: nCellsOwned
-      integer, intent(out) :: err                 !< Output: error flag
-
-      real (kind=RKIND), dimension(:,:,:), intent(in) :: &
-         sedimentTracers
-
-      real (kind=RKIND), dimension(:,:), intent(inout) :: &
-         sedimentSurfaceFlux
+      integer, intent(in)  :: nCellsOwned
+      real (kind=RKIND), dimension(:,:), intent(inout) :: sedimentSurfaceFlux
+      integer, intent(out) :: err
 
       integer :: iCell, iClass
 
@@ -396,7 +392,7 @@ module ocn_tracer_sediment
 
       ! Zero surface fluxes; Phase 3 will add river and ice-ocean contributions
       do iCell = 1, nCellsOwned
-      do iClass = 1, nSedimentClasses
+      do iClass = 1, size(sedimentTracers, dim=1)
          sedimentSurfaceFlux(iClass, iCell) = 0.0_RKIND
       end do
       end do
