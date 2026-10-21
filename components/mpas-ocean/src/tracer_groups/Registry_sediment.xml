@@ -333,127 +333,127 @@
 				description="Mask for the selected sediment debug column (1.0 at selected cell, 0.0 elsewhere)"
 			/>
 			<var_array name="sedimentDebugInitial" type="real" dimensions="nVertLevels nCells Time" packages="sedimentTracersPKG">
-				<var name="sediment1DebugInitial" array_group="sedimentGRP"
+				<var name="sediment1DebugInitial" array_group="sedimentDebugGRP"
 					units="kg m^{-3}"
 					description="Initial column field for sediment class 1 at the debug cell"
 				/>
-				<var name="sediment2DebugInitial" array_group="sedimentGRP"
+				<var name="sediment2DebugInitial" array_group="sedimentDebugGRP"
 					units="kg m^{-3}"
 					description="Initial column field for sediment class 2 at the debug cell"
 				/>
-				<var name="sediment3DebugInitial" array_group="sedimentGRP"
+				<var name="sediment3DebugInitial" array_group="sedimentDebugGRP"
 					units="kg m^{-3}"
 					description="Initial column field for sediment class 3 at the debug cell"
 				/>
 			</var_array>
 			<var_array name="sedimentDebugPreAdvectionTendency" type="real" dimensions="nVertLevels nCells Time" packages="sedimentTracersPKG">
-				<var name="sediment1DebugPreAdvectionTendency" array_group="sedimentGRP"
+				<var name="sediment1DebugPreAdvectionTendency" array_group="sedimentDebugPreAdvTendGRP"
 					units="kg m^{-3} s^{-1}"
 					description="Tendency accumulated before horizontal advection for sediment class 1 at the debug cell"
 				/>
-				<var name="sediment2DebugPreAdvectionTendency" array_group="sedimentGRP"
+				<var name="sediment2DebugPreAdvectionTendency" array_group="sedimentDebugPreAdvTendGRP"
 					units="kg m^{-3} s^{-1}"
 					description="Tendency accumulated before horizontal advection for sediment class 2 at the debug cell"
 				/>
-				<var name="sediment3DebugPreAdvectionTendency" array_group="sedimentGRP"
+				<var name="sediment3DebugPreAdvectionTendency" array_group="sedimentDebugPreAdvTendGRP"
 					units="kg m^{-3} s^{-1}"
 					description="Tendency accumulated before horizontal advection for sediment class 3 at the debug cell"
 				/>
 			</var_array>
 			<var_array name="sedimentDebugAdvectionTendency" type="real" dimensions="nVertLevels nCells Time" packages="sedimentTracersPKG">
-				<var name="sediment1DebugAdvectionTendency" array_group="sedimentGRP"
+				<var name="sediment1DebugAdvectionTendency" array_group="sedimentDebugAdvTendGRP"
 					units="kg m^{-3} s^{-1}"
 					description="Horizontal/vertical advection tendency increment for sediment class 1 at the debug cell"
 				/>
-				<var name="sediment2DebugAdvectionTendency" array_group="sedimentGRP"
+				<var name="sediment2DebugAdvectionTendency" array_group="sedimentDebugAdvTendGRP"
 					units="kg m^{-3} s^{-1}"
 					description="Horizontal/vertical advection tendency increment for sediment class 2 at the debug cell"
 				/>
-				<var name="sediment3DebugAdvectionTendency" array_group="sedimentGRP"
+				<var name="sediment3DebugAdvectionTendency" array_group="sedimentDebugAdvTendGRP"
 					units="kg m^{-3} s^{-1}"
 					description="Horizontal/vertical advection tendency increment for sediment class 3 at the debug cell"
 				/>
 			</var_array>
 			<var_array name="sedimentDebugHmixTendency" type="real" dimensions="nVertLevels nCells Time" packages="sedimentTracersPKG">
-				<var name="sediment1DebugHmixTendency" array_group="sedimentGRP"
+				<var name="sediment1DebugHmixTendency" array_group="sedimentDebugHmixTendGRP"
 					units="kg m^{-3} s^{-1}"
 					description="Horizontal mixing tendency increment for sediment class 1 at the debug cell"
 				/>
-				<var name="sediment2DebugHmixTendency" array_group="sedimentGRP"
+				<var name="sediment2DebugHmixTendency" array_group="sedimentDebugHmixTendGRP"
 					units="kg m^{-3} s^{-1}"
 					description="Horizontal mixing tendency increment for sediment class 2 at the debug cell"
 				/>
-				<var name="sediment3DebugHmixTendency" array_group="sedimentGRP"
+				<var name="sediment3DebugHmixTendency" array_group="sedimentDebugHmixTendGRP"
 					units="kg m^{-3} s^{-1}"
 					description="Horizontal mixing tendency increment for sediment class 3 at the debug cell"
 				/>
 			</var_array>
 			<var_array name="sedimentDebugSurfaceFluxTendency" type="real" dimensions="nVertLevels nCells Time" packages="sedimentTracersPKG">
-				<var name="sediment1DebugSurfaceFluxTendency" array_group="sedimentGRP"
+				<var name="sediment1DebugSurfaceFluxTendency" array_group="sedimentDebugSurfFluxTendGRP"
 					units="kg m^{-3} s^{-1}"
 					description="Surface flux tendency increment for sediment class 1 at the debug cell"
 				/>
-				<var name="sediment2DebugSurfaceFluxTendency" array_group="sedimentGRP"
+				<var name="sediment2DebugSurfaceFluxTendency" array_group="sedimentDebugSurfFluxTendGRP"
 					units="kg m^{-3} s^{-1}"
 					description="Surface flux tendency increment for sediment class 2 at the debug cell"
 				/>
-				<var name="sediment3DebugSurfaceFluxTendency" array_group="sedimentGRP"
+				<var name="sediment3DebugSurfaceFluxTendency" array_group="sedimentDebugSurfFluxTendGRP"
 					units="kg m^{-3} s^{-1}"
 					description="Surface flux tendency increment for sediment class 3 at the debug cell"
 				/>
 			</var_array>
 			<var_array name="sedimentDebugNonLocalTendency" type="real" dimensions="nVertLevels nCells Time" packages="sedimentTracersPKG">
-				<var name="sediment1DebugNonLocalTendency" array_group="sedimentGRP"
+				<var name="sediment1DebugNonLocalTendency" array_group="sedimentDebugNonLocTendGRP"
 					units="kg m^{-3} s^{-1}"
 					description="Non-local KPP tendency increment for sediment class 1 at the debug cell"
 				/>
-				<var name="sediment2DebugNonLocalTendency" array_group="sedimentGRP"
+				<var name="sediment2DebugNonLocalTendency" array_group="sedimentDebugNonLocTendGRP"
 					units="kg m^{-3} s^{-1}"
 					description="Non-local KPP tendency increment for sediment class 2 at the debug cell"
 				/>
-				<var name="sediment3DebugNonLocalTendency" array_group="sedimentGRP"
+				<var name="sediment3DebugNonLocalTendency" array_group="sedimentDebugNonLocTendGRP"
 					units="kg m^{-3} s^{-1}"
 					description="Non-local KPP tendency increment for sediment class 3 at the debug cell"
 				/>
 			</var_array>
 			<var_array name="sedimentDebugOtherTendency" type="real" dimensions="nVertLevels nCells Time" packages="sedimentTracersPKG">
-				<var name="sediment1DebugOtherTendency" array_group="sedimentGRP"
+				<var name="sediment1DebugOtherTendency" array_group="sedimentDebugOtherGRP"
 					units="kg m^{-3} s^{-1}"
 					description="Residual tendency increment for sediment class 1 after named tendency terms at the debug cell"
 				/>
-				<var name="sediment2DebugOtherTendency" array_group="sedimentGRP"
+				<var name="sediment2DebugOtherTendency" array_group="sedimentDebugOtherGRP"
 					units="kg m^{-3} s^{-1}"
 					description="Residual tendency increment for sediment class 2 after named tendency terms at the debug cell"
 				/>
-				<var name="sediment3DebugOtherTendency" array_group="sedimentGRP"
+				<var name="sediment3DebugOtherTendency" array_group="sedimentDebugOtherGRP"
 					units="kg m^{-3} s^{-1}"
 					description="Residual tendency increment for sediment class 3 after named tendency terms at the debug cell"
 				/>
 			</var_array>
 			<var_array name="sedimentDebugTotalTendency" type="real" dimensions="nVertLevels nCells Time" packages="sedimentTracersPKG">
-				<var name="sediment1DebugTotalTendency" array_group="sedimentGRP"
+				<var name="sediment1DebugTotalTendency" array_group="sedimentDebugTotTendGRP"
 					units="kg m^{-3} s^{-1}"
 					description="Final accumulated tendency for sediment class 1 at the debug cell"
 				/>
-				<var name="sediment2DebugTotalTendency" array_group="sedimentGRP"
+				<var name="sediment2DebugTotalTendency" array_group="sedimentDebugTotTendGRP"
 					units="kg m^{-3} s^{-1}"
 					description="Final accumulated tendency for sediment class 2 at the debug cell"
 				/>
-				<var name="sediment3DebugTotalTendency" array_group="sedimentGRP"
+				<var name="sediment3DebugTotalTendency" array_group="sedimentDebugTotTendGRP"
 					units="kg m^{-3} s^{-1}"
 					description="Final accumulated tendency for sediment class 3 at the debug cell"
 				/>
 			</var_array>
 			<var_array name="sedimentDebugFinal" type="real" dimensions="nVertLevels nCells Time" packages="sedimentTracersPKG">
-				<var name="sediment1DebugFinal" array_group="sedimentGRP"
+				<var name="sediment1DebugFinal" array_group="sedimentDebugFinalGRP"
 					units="kg m^{-3}"
 					description="Estimated end-of-step sediment class 1 field (initial + dt*tendency) at the debug cell"
 				/>
-				<var name="sediment2DebugFinal" array_group="sedimentGRP"
+				<var name="sediment2DebugFinal" array_group="sedimentDebugFinalGRP"
 					units="kg m^{-3}"
 					description="Estimated end-of-step sediment class 2 field (initial + dt*tendency) at the debug cell"
 				/>
-				<var name="sediment3DebugFinal" array_group="sedimentGRP"
+				<var name="sediment3DebugFinal" array_group="sedimentDebugFinalGRP"
 					units="kg m^{-3}"
 					description="Estimated end-of-step sediment class 3 field (initial + dt*tendency) at the debug cell"
 				/>
