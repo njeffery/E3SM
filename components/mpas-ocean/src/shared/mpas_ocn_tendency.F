@@ -644,8 +644,10 @@ contains
          tracerGroupPistonVelocity,        &! forcing piston velocity
          tracerGroupSurfaceRestoringValue, &! restore sfc to this value
          tracerGroupIdealAgeMask,          &! mask to reset ideal age
-         tracerGroupTTDMask,               &! mask for TTD values
-         sedimentDebugCellMask             ! selected sediment debug cell
+         tracerGroupTTDMask                 ! mask for TTD values
+
+      real (kind=RKIND), dimension(:), pointer, contiguous :: &
+         sedimentDebugCellMask  ! selected sediment debug cell
 
       real (kind=RKIND), dimension(:,:), pointer, contiguous :: &
          layerThickness,               &! layer thickness
@@ -748,7 +750,7 @@ contains
       !TEMPORARY - once diagnotics module ported, these should already
       !            be on the device
       !$acc update device (normalTransportVelocity, layerThickEdgeFlux, &
-      !$acc                vertAleTransportTop)
+      !$acc                vertAleTransportTop, kineticEnergyCell)
 
       ! compute transport velocity to use for all tracers
 #ifdef MPAS_OPENACC
@@ -951,28 +953,17 @@ contains
                                   tracerGroupSurfaceFluxRemoved)
 
          if (sedimentDebugActive) then
-            call ocn_select_sediment_debug_cell(nCellsAll, sedimentDebugCell, &
-                                                maxLevelCell, latCell, lonCell, &
-                                                tracerGroupSurfaceFluxRunoff, &
-                                                sedimentDebugCell)
+            if (sedimentDebugCell <= 0) then
+               call ocn_select_sediment_debug_cell(nCellsAll, sedimentDebugCell, &
+                                                 maxLevelCell, latCell, lonCell, &
+                                                 tracerGroupSurfaceFluxRunoff)
+            end if
 
             if (sedimentDebugCell >= 1 .and. sedimentDebugCell <= nCellsAll) then
                allocate(sedimentDebugPrevTend(nSedimentDebugTracers, nVertLevels))
                sedimentDebugPrevTend(:,:) = 0.0_RKIND
                call mpas_log_write('sediment debug diagnostics active at cell $i', &
                                    intArgs=(/sedimentDebugCell/))
-            else
-               sedimentDebugCellMask(:,1) = 0.0_RKIND
-               sedimentDebugInitial(:,:,:) = 0.0_RKIND
-               sedimentDebugPreAdvectionTendency(:,:,:) = 0.0_RKIND
-               sedimentDebugAdvectionTendency(:,:,:) = 0.0_RKIND
-               sedimentDebugHmixTendency(:,:,:) = 0.0_RKIND
-               sedimentDebugSurfaceFluxTendency(:,:,:) = 0.0_RKIND
-               sedimentDebugNonLocalTendency(:,:,:) = 0.0_RKIND
-               sedimentDebugOtherTendency(:,:,:) = 0.0_RKIND
-               sedimentDebugTotalTendency(:,:,:) = 0.0_RKIND
-               sedimentDebugFinal(:,:,:) = 0.0_RKIND
-               sedimentDebugActive = .false.
             end if
          end if
 
@@ -1014,25 +1005,26 @@ contains
          end if
 
          if (sedimentDebugActive) then
-            sedimentDebugCellMask(:,1) = 0.0_RKIND
-            sedimentDebugCellMask(sedimentDebugCell,1) = 1.0_RKIND
+            if (sedimentDebugCell >= 1 .and. sedimentDebugCell <= nCellsAll) then
+               sedimentDebugCellMask(:) = 0.0_RKIND
+               sedimentDebugCellMask(sedimentDebugCell) = 1.0_RKIND
+               sedimentDebugInitial(:,:,:) = 0.0_RKIND
+               sedimentDebugPreAdvectionTendency(:,:,:) = 0.0_RKIND
+               sedimentDebugAdvectionTendency(:,:,:) = 0.0_RKIND
+               sedimentDebugHmixTendency(:,:,:) = 0.0_RKIND
+               sedimentDebugSurfaceFluxTendency(:,:,:) = 0.0_RKIND
+               sedimentDebugNonLocalTendency(:,:,:) = 0.0_RKIND
+               sedimentDebugOtherTendency(:,:,:) = 0.0_RKIND
+               sedimentDebugTotalTendency(:,:,:) = 0.0_RKIND
+               sedimentDebugFinal(:,:,:) = 0.0_RKIND
 
-            sedimentDebugInitial(:,:,:) = 0.0_RKIND
-            sedimentDebugPreAdvectionTendency(:,:,:) = 0.0_RKIND
-            sedimentDebugAdvectionTendency(:,:,:) = 0.0_RKIND
-            sedimentDebugHmixTendency(:,:,:) = 0.0_RKIND
-            sedimentDebugSurfaceFluxTendency(:,:,:) = 0.0_RKIND
-            sedimentDebugNonLocalTendency(:,:,:) = 0.0_RKIND
-            sedimentDebugOtherTendency(:,:,:) = 0.0_RKIND
-            sedimentDebugTotalTendency(:,:,:) = 0.0_RKIND
-            sedimentDebugFinal(:,:,:) = 0.0_RKIND
-
-            do n = 1, nSedimentDebugTracers
-            do k = 1, nVertLevels
-               sedimentDebugInitial(n, k, sedimentDebugCell) = &
-                  tracerGroup(n, k, sedimentDebugCell)
-            end do
-            end do
+               do n = 1, nSedimentDebugTracers
+               do k = 1, nVertLevels
+                  sedimentDebugInitial(n, k, sedimentDebugCell) = &
+                     tracerGroup(n, k, sedimentDebugCell)
+               end do
+               end do
+            end if
          end if
 
          !
@@ -1637,15 +1629,16 @@ contains
 
    subroutine ocn_select_sediment_debug_cell(nCells, requestedCell, &
                                              maxLevelCellIn, latCellIn, lonCellIn, &
-                                             tracerGroupSurfaceFluxRunoff, selectedCell)
+                                             tracerGroupSurfaceFluxRunoff)
 
-      integer, intent(in) :: nCells, requestedCell
+      integer, intent(in) :: nCells
+      integer, intent(inout) :: requestedCell
       integer, dimension(:), intent(in) :: maxLevelCellIn
       real (kind=RKIND), dimension(:), intent(in) :: latCellIn, lonCellIn
       real (kind=RKIND), dimension(:,:), intent(in) :: tracerGroupSurfaceFluxRunoff
-      integer, intent(out) :: selectedCell
 
       integer :: iCell
+      integer :: selectedCell
       real (kind=RKIND) :: bestRunoff, bestDist2, dist2, dlon
       real (kind=RKIND) :: latDeg, lonDeg
       real (kind=RKIND), parameter :: deg2rad = 0.017453292519943295_RKIND
@@ -1655,14 +1648,6 @@ contains
       real (kind=RKIND), parameter :: maxLat = 78.0_RKIND
       real (kind=RKIND), parameter :: minLon = 55.0_RKIND
       real (kind=RKIND), parameter :: maxLon = 95.0_RKIND
-
-      selectedCell = 0
-      if (requestedCell >= 1 .and. requestedCell <= nCells) then
-         if (maxLevelCellIn(requestedCell) > 0) then
-            selectedCell = requestedCell
-            return
-         end if
-      end if
 
       bestRunoff = -1.0_RKIND
       do iCell = 1, nCells
@@ -1678,7 +1663,10 @@ contains
             end if
          end if
       end do
-      if (selectedCell > 0 .and. bestRunoff > 0.0_RKIND) return
+      if (selectedCell > 0 .and. bestRunoff > 0.0_RKIND) then
+         requestedCell = selectedCell
+         return
+      endif
 
       bestDist2 = huge(1.0_RKIND)
       do iCell = 1, nCells
@@ -1691,6 +1679,7 @@ contains
          if (dist2 < bestDist2) then
             bestDist2 = dist2
             selectedCell = iCell
+            requestedCell = selectedCell
          end if
       end do
 

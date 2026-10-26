@@ -328,7 +328,7 @@
 				units="kg m^{-2} s^{-1}"
 				description="Erosion flux from seafloor, sediment class 3"
 			/>
-			<var name="sedimentDebugCellMask" type="real" dimensions="nCells Time"
+			<var name="sedimentDebugCellMask" type="real" dimensions="nCells"
 				units="unitless"
 				description="Mask for the selected sediment debug column (1.0 at selected cell, 0.0 elsewhere)"
 			/>
