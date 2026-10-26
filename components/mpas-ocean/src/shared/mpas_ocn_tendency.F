@@ -643,7 +643,9 @@ contains
          tracerGroupPistonVelocity,        &! forcing piston velocity
          tracerGroupSurfaceRestoringValue, &! restore sfc to this value
          tracerGroupIdealAgeMask,          &! mask to reset ideal age
-         tracerGroupTTDMask,               &! mask for TTD values
+         tracerGroupTTDMask                 ! mask for TTD values
+
+      real (kind=RKIND), dimension(:), pointer, contiguous :: &
          docrDebugCellMask
 
       real (kind=RKIND), dimension(:,:), pointer, contiguous :: &
@@ -901,14 +903,14 @@ contains
          endif
 
          !NJ-Sed
-         if ( groupName == 'ecosysTracers' ) then            
+         if ( groupName == 'ecosysTracers' ) then
             call mpas_pool_get_array(tracersPool, 'ecosysTracers', &
                                      ecosysTracers, timeLevel)
             call mpas_pool_get_dimension(  tracersTendPool, &
                       'index_DOCrTend', indexTracer)
             !NJ-Sed: see Undzis et al (Hasnt been peer reviewed)
             !Sediment Type   :Unaggregated mud ; Aggregated mud ; Very fine sand; Coarse sand; Pebbles/Gravel
-            !Velocities(mm/s):         .1 ; 1.0 ; 15; 90; 1000.  
+            !Velocities(mm/s):         .1 ; 1.0 ; 15; 90; 1000.
             sinkTracer = indexTracer
             sinkingRate =  -0.001_RKIND   ! m/s
 
@@ -947,7 +949,7 @@ contains
             endif
          endif
 
-         ! Get Array of total surface temp/salt flux 
+         ! Get Array of total surface temp/salt flux
          ! (includes thickness tendencies)
          call mpas_pool_get_array(tracersSurfaceFluxPool, &
                                   'nonLocalSurfaceTracerFlux', &
@@ -977,29 +979,16 @@ contains
                                   tracerGroupSurfaceFluxRemoved)
 
          if (docrDebugActive) then
-            call ocn_select_docr_debug_cell(nDocrDebugCells, docrDebugCell, maxLevelCell, &
+            if (docrDebugCell <= 0) then
+                call ocn_select_docr_debug_cell(nCellsAll, docrDebugCell, maxLevelCell, &
                                             latCell, lonCell, &
-                                            tracerGroupSurfaceFluxRunoff(sinkTracer, :), &
-                                            docrDebugCell)
+                                            tracerGroupSurfaceFluxRunoff(sinkTracer, :))
+            end if
             if (docrDebugCell >= 1 .and. docrDebugCell <= nDocrDebugCells) then
                allocate(docrDebugPrevTend(nVertLevels))
                docrDebugPrevTend(:) = 0.0_RKIND
                call mpas_log_write('DOCr debug diagnostics active at cell $i', &
                                    intArgs=(/docrDebugCell/))
-            else
-               call mpas_log_write('DOCr debug diagnostics disabled on this block: invalid debug cell $i', &
-                                   intArgs=(/docrDebugCell/))
-               docrDebugCellMask(:,1) = 0.0_RKIND
-               docrDebugInitial(:,:,:) = 0.0_RKIND
-               docrDebugPreAdvectionTendency(:,:,:) = 0.0_RKIND
-               docrDebugAdvectionTendency(:,:,:) = 0.0_RKIND
-               docrDebugHmixTendency(:,:,:) = 0.0_RKIND
-               docrDebugSurfaceFluxTendency(:,:,:) = 0.0_RKIND
-               docrDebugNonLocalTendency(:,:,:) = 0.0_RKIND
-               docrDebugOtherTendency(:,:,:) = 0.0_RKIND
-               docrDebugTotalTendency(:,:,:) = 0.0_RKIND
-               docrDebugFinal(:,:,:) = 0.0_RKIND
-               docrDebugActive = .false.
             endif
          endif
 
@@ -1041,23 +1030,24 @@ contains
          end if
 
          if (docrDebugActive) then
-            docrDebugCellMask(:,1) = 0.0_RKIND
-            docrDebugCellMask(docrDebugCell,1) = 1.0_RKIND
+            if (docrDebugCell >= 1 .and. docrDebugCell <= nCellsAll) then
+               docrDebugCellMask(:) = 0.0_RKIND
+               docrDebugCellMask(docrDebugCell) = 1.0_RKIND
+               docrDebugInitial(:,:,:) = 0.0_RKIND
+               docrDebugPreAdvectionTendency(:,:,:) = 0.0_RKIND
+               docrDebugAdvectionTendency(:,:,:) = 0.0_RKIND
+               docrDebugHmixTendency(:,:,:) = 0.0_RKIND
+               docrDebugSurfaceFluxTendency(:,:,:) = 0.0_RKIND
+               docrDebugNonLocalTendency(:,:,:) = 0.0_RKIND
+               docrDebugOtherTendency(:,:,:) = 0.0_RKIND
+               docrDebugTotalTendency(:,:,:) = 0.0_RKIND
+               docrDebugFinal(:,:,:) = 0.0_RKIND
 
-            docrDebugInitial(:,:,:) = 0.0_RKIND
-            docrDebugPreAdvectionTendency(:,:,:) = 0.0_RKIND
-            docrDebugAdvectionTendency(:,:,:) = 0.0_RKIND
-            docrDebugHmixTendency(:,:,:) = 0.0_RKIND
-            docrDebugSurfaceFluxTendency(:,:,:) = 0.0_RKIND
-            docrDebugNonLocalTendency(:,:,:) = 0.0_RKIND
-            docrDebugOtherTendency(:,:,:) = 0.0_RKIND
-            docrDebugTotalTendency(:,:,:) = 0.0_RKIND
-            docrDebugFinal(:,:,:) = 0.0_RKIND
-
-            do k = 1, nVertLevels
-               docrDebugInitial(1, k, docrDebugCell) = &
-                  tracerGroup(sinkTracer, k, docrDebugCell)
-            enddo
+               do k = 1, nVertLevels
+                  docrDebugInitial(1, k, docrDebugCell) = &
+                     tracerGroup(sinkTracer, k, docrDebugCell)
+               enddo
+            endif
          endif
 
          !
@@ -1101,7 +1091,7 @@ contains
                                            zMid, minLevelCell, indxTemp, &
                                            indxSalt, tracerGroupSurfaceFlux, &
                                            err)
-                                           
+
          endif ! ecosys tracers
 
          !
@@ -1172,7 +1162,7 @@ contains
               call mpas_pool_get_dimension(tracersPool, 'index_CFC12', indexCFC12)
               indxCFC12 = indexCFC12 ! convert to int scalar due to problems with int scalar pointers
             endif
-                                                 
+
             call ocn_tracer_CFC_surface_flux_compute(activeTracers, &
                                         tracerGroup, forcingPool,  &
                                         nTracersGroup, nCellsOwned, &
@@ -1358,19 +1348,19 @@ contains
          ! Tracer budget is computed and stored within the tracer adv
          ! routine
 
-         ! NJ-Sed 
-         call mpas_pool_get_array(ecosysAuxiliaryPool, &                                       
-                                     'sedimentBottomFlux', & 
-                                     sedimentBottomFlux)  
-         call mpas_pool_get_array(ecosysAuxiliaryPool, &                                       
-                                     'netErosionFlux', & 
-                                     netErosionFlux)  
-         call mpas_pool_get_array(ecosysAuxiliaryPool, &                                       
-                                     'netSedimentStorage', & 
-                                     netSedimentStorage)  
-         call mpas_pool_get_array(ecosysAuxiliaryPool, &                                       
-                                     'bottomStressCell', & 
-                                     bottomStressCell)  
+         ! NJ-Sed
+         call mpas_pool_get_array(ecosysAuxiliaryPool, &
+                                     'sedimentBottomFlux', &
+                                     sedimentBottomFlux)
+         call mpas_pool_get_array(ecosysAuxiliaryPool, &
+                                     'netErosionFlux', &
+                                     netErosionFlux)
+         call mpas_pool_get_array(ecosysAuxiliaryPool, &
+                                     'netSedimentStorage', &
+                                     netSedimentStorage)
+         call mpas_pool_get_array(ecosysAuxiliaryPool, &
+                                     'bottomStressCell', &
+                                     bottomStressCell)
 
          call ocn_tracer_advection_tend(tracerGroup, &
                             normalThicknessFlux, vertAleTransportTop, &
@@ -1380,7 +1370,7 @@ contains
                             normalVelocity, kineticEnergyCell, bottomStressCell, &
                             layerThickEdgeDrag, netErosionFlux)
 
-         
+
          deallocate(skipTracer)
 
          !$acc update host (activeTracerHorizontalAdvectionEdgeFlux, &
@@ -1646,15 +1636,16 @@ contains
 !-----------------------------------------------------------------------
 
    subroutine ocn_select_docr_debug_cell(nCells, requestedCell, maxLevelCellIn, &
-                                         latCellIn, lonCellIn, runoffFlux, selectedCell)
+                                         latCellIn, lonCellIn, runoffFlux)
 
-      integer, intent(in) :: nCells, requestedCell
+      integer, intent(in) :: nCells
+      integer, intent(inout) :: requestedCell
       integer, dimension(:), intent(in) :: maxLevelCellIn
       real (kind=RKIND), dimension(:), intent(in) :: latCellIn, lonCellIn
       real (kind=RKIND), dimension(:), intent(in) :: runoffFlux
-      integer, intent(out) :: selectedCell
 
       integer :: iCell
+      integer :: selectedCell
       real (kind=RKIND) :: bestRunoff, bestDist2, dist2, dlon
       real (kind=RKIND) :: latDeg, lonDeg
       real (kind=RKIND), parameter :: deg2rad = 0.017453292519943295_RKIND
@@ -1664,14 +1655,6 @@ contains
       real (kind=RKIND), parameter :: maxLat = 78.0_RKIND
       real (kind=RKIND), parameter :: minLon = 55.0_RKIND
       real (kind=RKIND), parameter :: maxLon = 95.0_RKIND
-
-      selectedCell = 0
-      if (requestedCell >= 1 .and. requestedCell <= nCells) then
-         if (maxLevelCellIn(requestedCell) > 0) then
-            selectedCell = requestedCell
-            return
-         endif
-      endif
 
       bestRunoff = -1.0_RKIND
       do iCell = 1, nCells
@@ -1686,7 +1669,10 @@ contains
             endif
          endif
       enddo
-      if (selectedCell > 0 .and. bestRunoff > 0.0_RKIND) return
+      if (selectedCell > 0 .and. bestRunoff > 0.0_RKIND) then
+         requestedCell = selectedCell
+         return
+      endif
 
       bestDist2 = huge(1.0_RKIND)
       do iCell = 1, nCells
@@ -1699,6 +1685,7 @@ contains
          if (dist2 < bestDist2) then
             bestDist2 = dist2
             selectedCell = iCell
+            requestedCell = selectedCell
          endif
       enddo
 

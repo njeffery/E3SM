@@ -734,7 +734,7 @@
 			<var name="netErosionFlux" type="real" dimensions="nCells Time" units="kg m^{-3} m s^{-1}"
 				description="Erosion flux from the sea floor to the ocean bottom"
 			/>
-			<var name="docrDebugCellMask" type="real" dimensions="nCells Time" units="unitless"
+			<var name="docrDebugCellMask" type="real" dimensions="nCells" units="unitless"
 				description="Mask for the selected DOCr debug column (1.0 at selected cell, 0.0 elsewhere)"
 			/>
 			<var name="docrDebugInitial" type="real" dimensions="nVertLevels nCells Time" units="mmol C m^{-3}"
