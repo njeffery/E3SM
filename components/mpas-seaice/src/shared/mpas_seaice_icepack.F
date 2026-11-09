@@ -9957,6 +9957,7 @@ subroutine init_column_waves(domain)
     logical, pointer :: &
          config_calc_surface_stresses, &
          config_calc_surface_temperature, &
+         config_use_mushy_zero_salinity, &
          config_use_form_drag, &
          config_use_level_ice, &
          config_use_level_meltponds, &
@@ -10011,6 +10012,7 @@ subroutine init_column_waves(domain)
 
     call MPAS_pool_get_config(domain % configs, "config_thermodynamics_type", config_thermodynamics_type)
     call MPAS_pool_get_config(domain % configs, "config_heat_conductivity_type", config_heat_conductivity_type)
+    call MPAS_pool_get_config(domain % configs, "config_use_mushy_zero_salinity", config_use_mushy_zero_salinity)
     call MPAS_pool_get_config(domain % configs, "config_shortwave_type", config_shortwave_type)
     call MPAS_pool_get_config(domain % configs, "config_albedo_type", config_albedo_type)
     call MPAS_pool_get_config(domain % configs, "config_ice_strength_formulation", config_ice_strength_formulation)
@@ -10199,6 +10201,18 @@ subroutine init_column_waves(domain)
           trim(config_thermodynamics_type) /= "mushy") then
             call mpas_log_write(&
               'check_column_package_configs: config_frazil_coupling_type=''omega-fluxes'' requires config_thermodynamics_type=''mushy''', &
+              messageType=MPAS_LOG_CRIT)
+         endif
+
+         ! omega-fluxes with prognostic salt fluxes requires the zero-salinity
+         ! mushy closure, so that the new ice salinity is not clamped to
+         ! min_salin and salt is conserved with the ocean
+         if (trim(config_frazil_coupling_type) == "omega-fluxes" .and. &
+          trim(config_salt_flux_coupling_type) == "prognostic" .and. &
+          .not. config_use_mushy_zero_salinity) then
+            call mpas_log_write(&
+              'check_column_package_configs: config_frazil_coupling_type=''omega-fluxes'' with '// &
+              'config_salt_flux_coupling_type=''prognostic'' requires config_use_mushy_zero_salinity=true', &
               messageType=MPAS_LOG_CRIT)
          endif
 
@@ -10795,6 +10809,7 @@ subroutine init_column_waves(domain)
          config_use_snicar_ad, &
          config_calc_surface_temperature, &
          config_update_ocean_fluxes, &
+         config_use_mushy_zero_salinity, &
          config_use_form_drag, &
          config_use_high_frequency_coupling, &
          config_use_ocean_mixed_layer, &
@@ -11002,6 +11017,7 @@ subroutine init_column_waves(domain)
     call MPAS_pool_get_config(domain % configs, "config_ocean_heat_transfer_type", config_ocean_heat_transfer_type)
     call MPAS_pool_get_config(domain % configs, "config_calc_surface_temperature", config_calc_surface_temperature)
     call MPAS_pool_get_config(domain % configs, "config_update_ocean_fluxes", config_update_ocean_fluxes)
+    call MPAS_pool_get_config(domain % configs, "config_use_mushy_zero_salinity", config_use_mushy_zero_salinity)
     call MPAS_pool_get_config(domain % configs, "config_frazil_coupling_type", config_frazil_coupling_type)
     call MPAS_pool_get_config(domain % configs, "config_congelation_freezing_method", config_congelation_freezing_method)
     call MPAS_pool_get_config(domain % configs, "config_min_friction_velocity", config_min_friction_velocity)
@@ -11448,6 +11464,7 @@ subroutine init_column_waves(domain)
          cpl_frazil_in           = config_frazil_coupling_type, &
          congel_freeze_in        = config_congelation_freezing_method, &
          update_ocn_f_in         = config_update_ocean_fluxes, &
+         mushy_zero_salinity_in  = config_use_mushy_zero_salinity, &
          ustar_min_in            = config_min_friction_velocity, &
          a_rapid_mode_in         = config_rapid_mode_channel_radius, &
          Rac_rapid_mode_in       = config_rapid_model_critical_Ra, &

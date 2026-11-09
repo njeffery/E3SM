@@ -4,5 +4,6 @@ frazil coupling model:
    config_frazil_coupling_type = 'omega-fluxes'
    config_ocean_surface_type = 'free'
    config_salt_flux_coupling_type = 'prognostic'
+   config_use_mushy_zero_salinity = .true.
 Note that all settings are required. It will have an impact on all
 mpassi runs.

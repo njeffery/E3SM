@@ -1770,6 +1770,11 @@
 			possible_values="'MU71' or 'bubbly'"
 			icepack_name="conduct"
 		/>
+		<nml_option name="config_use_mushy_zero_salinity" type="logical" default_value="false" units="unitless"
+			description="If true, use the Icepack zero-salinity closure for mushy thermodynamics, which allows ice with zero bulk salinity. Required with config_frazil_coupling_type = 'omega-fluxes' and config_salt_flux_coupling_type = 'prognostic'."
+			possible_values="true or false"
+			icepack_name="mushy_zero_salinity"
+		/>
 		<nml_option name="config_rapid_mode_channel_radius" type="real" default_value="0.5e-3" units="m"
 			description="Channel radius for rapid gravity drainage mode."
 			possible_values="Any positive real number."

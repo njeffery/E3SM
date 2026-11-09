@@ -2514,6 +2514,14 @@ Valid values: 'MU71' or 'bubbly'
 Default: Defined in namelist_defaults.xml
 </entry>
 
+<entry id="config_use_mushy_zero_salinity" type="logical"
+	category="thermodynamics" group="thermodynamics">
+If true, use the Icepack zero-salinity closure for mushy thermodynamics, which allows ice with zero bulk salinity. Required with config_frazil_coupling_type = 'omega-fluxes' and config_salt_flux_coupling_type = 'prognostic'.
+
+Valid values: true or false
+Default: Defined in namelist_defaults.xml
+</entry>
+
 <entry id="config_rapid_mode_channel_radius" type="real"
 	category="thermodynamics" group="thermodynamics">
 Channel radius for rapid gravity drainage mode.
