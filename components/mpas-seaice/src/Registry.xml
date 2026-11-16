@@ -5045,6 +5045,12 @@
 		     units="kg m-2"
 		     description="Salt in new ice formed this time step, including lateral growth. Uses the new ice salinity with omega-fluxes frazil coupling or prognostic salt fluxes, and the reference salinity otherwise."
 		/>
+		<var name="frazilEnergy"
+		     type="real"
+		     dimensions="nCells Time"
+		     units="J m-2"
+		     description="Enthalpy of new ice formed this time step, including lateral growth (negative)."
+		/>
 		<var name="frazilGrowthDiagnostic"
 		     type="real"
 		     dimensions="nCells Time"

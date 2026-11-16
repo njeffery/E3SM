@@ -2423,6 +2423,7 @@ subroutine init_column_waves(domain)
          frazilHeatFlux, &
          frazilFormation, &
          frazilSalt, &
+         frazilEnergy, &
          rainfallRate, &
          pondFreshWaterFlux, &
          oceanFreshWaterFlux, &
@@ -2571,6 +2572,7 @@ subroutine init_column_waves(domain)
        call MPAS_pool_get_array(melt_growth_rates, "lateralIceMelt", lateralIceMelt)
        call MPAS_pool_get_array(melt_growth_rates, "frazilFormation", frazilFormation)
        call MPAS_pool_get_array(melt_growth_rates, "frazilSalt", frazilSalt)
+       call MPAS_pool_get_array(melt_growth_rates, "frazilEnergy", frazilEnergy)
        call MPAS_pool_get_array(melt_growth_rates, "frazilGrowthDiagnostic", frazilGrowthDiagnostic)
 
        call MPAS_pool_get_array(ponds, "pondFreshWaterFlux", pondFreshWaterFlux)
@@ -2673,7 +2675,8 @@ subroutine init_column_waves(domain)
                frazilm=frazilMassFlux(iCell), &
                frazils=frazilSaltFlux(iCell), &
                frazilh=frazilHeatFlux(iCell), &
-               frazilSalt=frazilSalt(iCell))
+               frazilSalt=frazilSalt(iCell), &
+               frazilEnergy=frazilEnergy(iCell))
 
           do iBioTracers = 1, ciceTracerObject % nBioTracers
              oceanBioFluxes(iBioTracers,iCell) = oceanBioFluxes(iBioTracers,iCell) + oceanBioFluxesTemp(iBioTracers,iCell)
@@ -15173,7 +15176,8 @@ subroutine init_column_waves(domain)
          snowMelt, &
          basalIceMelt, &
          lateralIceMelt, &
-         frazilSalt
+         frazilSalt, &
+         frazilEnergy
 
     ! snow model
     real(kind=RKIND), dimension(:), pointer :: &
@@ -15272,6 +15276,7 @@ subroutine init_column_waves(domain)
           call MPAS_pool_get_array(meltGrowthRatesPool, "basalIceMelt", basalIceMelt)
           call MPAS_pool_get_array(meltGrowthRatesPool, "lateralIceMelt", lateralIceMelt)
           call MPAS_pool_get_array(meltGrowthRatesPool, "frazilSalt", frazilSalt)
+          call MPAS_pool_get_array(meltGrowthRatesPool, "frazilEnergy", frazilEnergy)
 
           congelation         = 0.0_RKIND
           frazilFormation     = 0.0_RKIND
@@ -15282,6 +15287,7 @@ subroutine init_column_waves(domain)
           basalIceMelt        = 0.0_RKIND
           lateralIceMelt      = 0.0_RKIND
           frazilSalt          = 0.0_RKIND
+          frazilEnergy        = 0.0_RKIND
 
           ! tendancies
           call MPAS_pool_get_config(block % configs, "config_use_ice_age", config_use_ice_age)

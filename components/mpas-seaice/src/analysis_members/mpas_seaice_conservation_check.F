@@ -770,7 +770,7 @@ contains
            oceanFluxesPool, &
            atmosFluxesPool, &
            atmosCouplingPool, &
-           diagnosticsPool
+           meltGrowthRatesPool
 
       real(kind=RKIND), dimension(:), pointer :: &
            areaCell, &
@@ -785,7 +785,7 @@ contains
            latentHeatFlux, &
            evaporativeWaterFlux, &
            oceanHeatFluxArea, &
-           freezingMeltingPotentialInitial, &
+           frazilEnergy, &
            snowfallRate
 
       integer, dimension(:,:), pointer :: &
@@ -861,7 +861,7 @@ contains
          call MPAS_pool_get_subpool(blockPtr % structs, "ocean_fluxes", oceanFluxesPool)
          call MPAS_pool_get_subpool(blockPtr % structs, "atmos_fluxes", atmosFluxesPool)
          call MPAS_pool_get_subpool(blockPtr % structs, "atmos_coupling", atmosCouplingPool)
-         call MPAS_pool_get_subpool(blockPtr % structs, "diagnostics", diagnosticsPool)
+         call MPAS_pool_get_subpool(blockPtr % structs, "melt_growth_rates", meltGrowthRatesPool)
          call MPAS_pool_get_subpool(blockPtr % structs, "conservationCheckAM", conservationCheckAMPool)
 
          call MPAS_pool_get_array(meshPool, "areaCell", areaCell)
@@ -877,13 +877,14 @@ contains
          call MPAS_pool_get_array(atmosFluxesPool, "evaporativeWaterFlux", evaporativeWaterFlux)
          call MPAS_pool_get_array(atmosCouplingPool, "longwaveDown", longwaveDown)
          call MPAS_pool_get_array(atmosCouplingPool, "snowfallRate", snowfallRate)
-         call MPAS_pool_get_array(diagnosticsPool, "freezingMeltingPotentialInitial", freezingMeltingPotentialInitial)
+         call MPAS_pool_get_array(meltGrowthRatesPool, "frazilEnergy", frazilEnergy)
          call MPAS_pool_get_array(conservationCheckAMPool, "cellInHemisphere", cellInHemisphere)
 
          do iCell = 1, nCellsSolve
 
             oceanHeatCell         = -oceanHeatFluxArea(iCell) * areaCell(iCell)
-            freezingPotentialCell = -max(0.0_RKIND, freezingMeltingPotentialInitial(iCell)) * areaCell(iCell)
+            ! enthalpy of all new ice (frazil and lateral growth) this step, < 0
+            freezingPotentialCell = (frazilEnergy(iCell) / dt) * areaCell(iCell)
             snowfallHeatCell      = -snowfallRate(iCell) * iceAreaCellInitial(iCell) * areaCell(iCell) * seaiceLatentHeatMelting
 
             do iHemisphere = 1, nHemispheres
