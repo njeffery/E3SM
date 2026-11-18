@@ -65,7 +65,8 @@
 	branch = e3sm
 [submodule "components/mpas-seaice/src/icepack"]
 	path = components/mpas-seaice/src/icepack
-	url = git@github.com:E3SM-Project/Icepack.git
+	url = https://github.com/proteanplanet/Icepack.git
+	branch = proteanplanet/zero-salinity-mushy-e3sm
 [submodule "gcam"]
 	path = components/gcam/src
 	url = git@github.com:E3SM-Project/giac
