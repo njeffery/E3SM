@@ -24,7 +24,6 @@ SET(SWEQX_SRCS
   ${SRC_BASE}/pio_io_mod.F90
   ${SRC_BASE}/repro_sum_mod.F90
   ${SRC_BASE}/restart_io_mod.F90
-  ${SRC_SHARE}/zoltan_mod.F90
   ${SRC_SHARE}/bndry_mod.F90
   ${SRC_SHARE}/cg_mod.F90
   ${SRC_SHARE}/control_mod.F90
@@ -50,7 +49,6 @@ SET(SWEQX_SRCS
   ${SRC_SHARE}/planar_mesh_mod.F90
   ${SRC_SHARE}/sort_mod.F90
   ${SRC_SHARE}/metagraph_mod.F90
-  ${SRC_SHARE}/metis_mod.F90
   ${SRC_SHARE}/namelist_mod.F90
   ${SRC_SHARE}/parallel_mod.F90
   ${SRC_SHARE}/params_mod.F90
