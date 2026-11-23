@@ -25,6 +25,7 @@ module ocn_frazil_forcing
    use mpas_pool_routines
    use mpas_timekeeping
    use mpas_timer
+   use mpas_log, only : mpas_log_write
    use ocn_constants
    use ocn_config
    use ocn_mesh
@@ -644,7 +645,8 @@ contains
             frazilSalinity = min( frazilSalinity, activeTracers(indexSalinity, k, iCell) )
 
             ! new frazil ice formation measured in meters
-            newFrazilIceThickness = freezingEnergy / (config_frazil_heat_of_fusion * config_frazil_ice_density)
+            newFrazilIceThickness = freezingEnergy / ((1.0_RKIND - frazil_liquid_fraction(underLandIce)) &
+                                    * config_frazil_heat_of_fusion * config_frazil_ice_density)
             ! limit the frazil formed appropriately
             newFrazilIceThickness = min(newFrazilIceThickness, layerThickness(k,iCell) * config_frazil_fractional_thickness_limit)
 
@@ -655,10 +657,12 @@ contains
             ! Determine new energy in frazil = latent + sensible heat
             if (config_include_sensible_heat_frazil) then
                newFrazilEnergy = newFrazilIceThickness * config_frazil_ice_density * &
+                  (1.0_RKIND - frazil_liquid_fraction(underLandIce)) * &
                   config_frazil_heat_of_fusion - rho_sw * config_specific_heat_sea_water * &
                   oceanFreezingTemperature * newFrazilIceThickness * config_frazil_ice_density/density(k,iCell)
             else
-               newFrazilEnergy = newFrazilIceThickness * config_frazil_ice_density * config_frazil_heat_of_fusion
+               newFrazilEnergy = newFrazilIceThickness * config_frazil_ice_density * &
+                  (1.0_RKIND - frazil_liquid_fraction(underLandIce)) * config_frazil_heat_of_fusion
             end if
 
             ! compute tendency to thickness, temperature and salinity
@@ -684,7 +688,8 @@ contains
             if (sumNewFrazilIceThickness > 0.0_RKIND) then
 
               ! Frazil melting
-              meltedFrazilIceThickness = meltingEnergy / (config_frazil_heat_of_fusion * config_frazil_ice_density)
+              meltedFrazilIceThickness = meltingEnergy / ((1.0_RKIND - frazil_liquid_fraction(underLandIce)) &
+                                       * config_frazil_heat_of_fusion * config_frazil_ice_density)
 
               ! limit melting by what there is to melt
               meltedFrazilIceThickness = min(meltedFrazilIceThickness, sumNewFrazilIceThickness)
@@ -1001,7 +1006,8 @@ contains
           if (freezingEnergy > 0) then
 
              ! new frazil ice formation measured in meters
-             newFrazilIceThickness = freezingEnergy / (config_frazil_heat_of_fusion * config_frazil_ice_density)
+             newFrazilIceThickness = freezingEnergy / ((1.0_RKIND - frazil_liquid_fraction(underLandIce)) &
+                                    * config_frazil_heat_of_fusion * config_frazil_ice_density)
 
              ! limit the frazil formed appropriately
              newFrazilIceThickness = min(newFrazilIceThickness, layerThickness(k,iCell) * config_frazil_fractional_thickness_limit)
@@ -1029,7 +1035,8 @@ contains
             if (sumNewFrazilIceThickness > 0.0_RKIND) then
 
                ! Frazil melting
-               meltedFrazilIceThickness = meltingEnergy / (config_frazil_heat_of_fusion * config_frazil_ice_density)
+               meltedFrazilIceThickness = meltingEnergy / ((1.0_RKIND - frazil_liquid_fraction(underLandIce)) &
+                                       * config_frazil_heat_of_fusion * config_frazil_ice_density)
 
                ! limit melting by what there is to melt
                meltedFrazilIceThickness = min(meltedFrazilIceThickness, sumNewFrazilIceThickness)
@@ -1105,7 +1112,45 @@ contains
       usePorosity = 0
       if(config_use_frazil_ice_porosity) usePorosity = 1
 
+      ! Porous frazil passed to the sea ice is part brine; only the solid
+      ! fraction (1 - porosity) freezes, so the porosity must be below 1.
+      if (config_use_frazil_ice_porosity .and. .not. config_expel_excess_frazil_salt .and. &
+          config_frazil_ice_porosity >= 1.0_RKIND) then
+         call mpas_log_write('config_frazil_ice_porosity must be less than 1 when ' // &
+                             'config_use_frazil_ice_porosity = .true. and ' // &
+                             'config_expel_excess_frazil_salt = .false.', MPAS_LOG_CRIT)
+         err = 1
+      end if
+
    end subroutine ocn_frazil_forcing_init!}}}
+
+!***********************************************************************
+!
+!  function frazil_liquid_fraction
+!
+!> \brief   Liquid (brine) mass fraction of new frazil
+!> \details
+!>  With frazil porosity on and its salt passed to the sea ice (no salt
+!>  expulsion, not under land ice), a fraction config_frazil_ice_porosity of
+!>  the new frazil mass is brine at the ocean freezing point, with bulk
+!>  salinity porosity * S_k. Only the solid fraction releases latent heat when
+!>  frazil forms, and only it needs latent heat to melt. Otherwise frazil is
+!>  treated as fully solid and the liquid fraction is 0.
+!
+!-----------------------------------------------------------------------
+
+   function frazil_liquid_fraction(underLandIce) result(liquidFraction)!{{{
+
+      logical, intent(in) :: underLandIce !< Input: cell is under land ice
+      real (kind=RKIND) :: liquidFraction
+
+      liquidFraction = 0.0_RKIND
+      if (usePorosity >= 1 .and. .not. underLandIce .and. &
+          .not. config_expel_excess_frazil_salt) then
+         liquidFraction = config_frazil_ice_porosity
+      end if
+
+   end function frazil_liquid_fraction!}}}
 
 !***********************************************************************
 
