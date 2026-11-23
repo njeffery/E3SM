@@ -1790,9 +1790,9 @@ Default: Defined in namelist_defaults.xml
 
 <entry id="config_frazil_ice_porosity" type="real"
 	category="frazil_ice" group="frazil_ice">
-If frazil porosity is used, sets the porosity of internal ocean frazil ice.
+Liquid (brine) fraction of new frazil ice when config_use_frazil_ice_porosity is true. The frazil bulk salinity is the porosity times the ocean salinity. When the frazil salt is passed to the sea ice (config_expel_excess_frazil_salt = .false.) and the frazil is not under land ice, only the solid fraction (1 - porosity) releases latent heat as frazil forms and needs latent heat to melt.
 
-Valid values: Positive real number from 0 to 1
+Valid values: Real number from 0 to 1; must be less than 1 when config_expel_excess_frazil_salt = .false.
 Default: Defined in namelist_defaults.xml
 </entry>
 

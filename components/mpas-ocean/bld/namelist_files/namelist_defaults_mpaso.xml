@@ -505,7 +505,7 @@
 <config_frazil_heat_of_fusion>3.337e5</config_frazil_heat_of_fusion>
 <config_use_frazil_ice_porosity>.false.</config_use_frazil_ice_porosity>
 <config_frazil_ice_density>1000.0</config_frazil_ice_density>
-<config_frazil_ice_porosity>1.0</config_frazil_ice_porosity>
+<config_frazil_ice_porosity>0.7</config_frazil_ice_porosity>
 <config_frazil_fractional_thickness_limit>0.1</config_frazil_fractional_thickness_limit>
 <config_include_sensible_heat_frazil>.true.</config_include_sensible_heat_frazil>
 <config_expel_excess_frazil_salt>.true.</config_expel_excess_frazil_salt>
