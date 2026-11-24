@@ -211,7 +211,7 @@ mpas_ocn_tracer_DMS.o: mpas_ocn_constants.o mpas_ocn_config.o
 
 mpas_ocn_sediment_settling.o: mpas_ocn_constants.o mpas_ocn_config.o mpas_ocn_mesh.o
 
-mpas_ocn_tracer_sediment.o: mpas_ocn_constants.o mpas_ocn_config.o mpas_ocn_mesh.o mpas_ocn_sediment_settling.o
+mpas_ocn_tracer_sediment.o: mpas_ocn_constants.o mpas_ocn_config.o mpas_ocn_mesh.o mpas_ocn_sediment_settling.o mpas_ocn_diagnostics_variables.o
 
 mpas_ocn_tracer_MacroMolecules.o: mpas_ocn_constants.o mpas_ocn_config.o
 

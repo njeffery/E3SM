@@ -50,6 +50,7 @@ module ocn_tracer_sediment
    use ocn_config
    use ocn_mesh
    use ocn_constants
+   use ocn_diagnostics_variables, only: kineticEnergyCell, layerThickEdgeDrag
 
    use ocn_sediment_settling
 
@@ -269,10 +270,10 @@ module ocn_tracer_sediment
 
       type (mpas_pool_type), pointer :: sedimentAuxiliary
 
+      ! kineticEnergyCell and layerThickEdgeDrag are diagnostics from
+      ! ocn_diagnostics_variables, not fields in the state or mesh pools
       real (kind=RKIND), dimension(:,:), pointer :: &
-         normalVelocity,    &
-         kineticEnergyCell, &
-         layerThickEdgeDrag
+         normalVelocity
 
       real (kind=RKIND), dimension(:), pointer :: &
          bottomStressCellSediment, &
@@ -292,8 +293,6 @@ module ocn_tracer_sediment
       call mpas_pool_get_subpool(forcingPool, 'sedimentAuxiliary', sedimentAuxiliary)
 
       call mpas_pool_get_array(statePool,   'normalVelocity',    normalVelocity,    timeLevel)
-      call mpas_pool_get_array(statePool,   'kineticEnergyCell', kineticEnergyCell, timeLevel)
-      call mpas_pool_get_array(meshPool,    'layerThickEdgeDrag', layerThickEdgeDrag)
       call mpas_pool_get_dimension(meshPool, 'nCellsSolve', nCellsSolve)
 
       call mpas_pool_get_array(sedimentAuxiliary, 'bottomStressCellSediment', bottomStressCellSediment)
