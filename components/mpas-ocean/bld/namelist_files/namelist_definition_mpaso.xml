@@ -3499,7 +3499,7 @@ Default: Defined in namelist_defaults.xml
 
 <entry id="config_sediment_debug_cell" type="integer"
 	category="tracer_forcing_sedimentTracers_idealAge_forcing" group="tracer_forcing_sedimentTracers">
-Cell index for sediment debug diagnostics; <=0 selects a default Ob River mouth column
+Global cell ID (indexToCellID) of the column for sediment debug diagnostics; 0 or less selects the ocean cell nearest the Ob River mouth
 
 Valid values: any integer
 Default: Defined in namelist_defaults.xml
