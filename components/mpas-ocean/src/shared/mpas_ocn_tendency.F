@@ -675,6 +675,7 @@ contains
          tracerGroupInteriorRestoringValue, &! int restoring value
          sedimentDebugInitial, &
          sedimentDebugPreAdvectionTendency, &
+         sedimentDebugSettlingTendency, &
          sedimentDebugAdvectionTendency, &
          sedimentDebugHmixTendency, &
          sedimentDebugSurfaceFluxTendency, &
@@ -891,6 +892,9 @@ contains
                                         'sedimentDebugPreAdvectionTendency', &
                                         sedimentDebugPreAdvectionTendency)
                call mpas_pool_get_array(sedimentAuxiliaryPool, &
+                                        'sedimentDebugSettlingTendency', &
+                                        sedimentDebugSettlingTendency)
+               call mpas_pool_get_array(sedimentAuxiliaryPool, &
                                         'sedimentDebugAdvectionTendency', &
                                         sedimentDebugAdvectionTendency)
                call mpas_pool_get_array(sedimentAuxiliaryPool, &
@@ -967,6 +971,7 @@ contains
             sedimentDebugCellMask(:) = 0.0_RKIND
             sedimentDebugInitial(:,:,:) = 0.0_RKIND
             sedimentDebugPreAdvectionTendency(:,:,:) = 0.0_RKIND
+            sedimentDebugSettlingTendency(:,:,:) = 0.0_RKIND
             sedimentDebugAdvectionTendency(:,:,:) = 0.0_RKIND
             sedimentDebugHmixTendency(:,:,:) = 0.0_RKIND
             sedimentDebugSurfaceFluxTendency(:,:,:) = 0.0_RKIND
@@ -1128,9 +1133,29 @@ contains
          ! NOTE: must be called before ocn_tracer_surface_flux_tend
          !
          if ( groupName == 'sedimentTracers' ) then
+            if (sedimentDebugHere) then
+               do n = 1, nSedimentDebugTracers
+               do k = 1, nVertLevels
+                  sedimentDebugPrevTend(n, k) = tracerGroupTend(n, k, sedimentDebugCell)
+               end do
+               end do
+            end if
+
             call ocn_tracer_sediment_tend(statePool, forcingPool, meshPool, &
                                           tracerGroup, tracerGroupTend, &
                                           layerThickness, dt, timeLevel, err)
+
+            ! settling, deposition and erosion increment at the debug column
+            if (sedimentDebugHere) then
+               do n = 1, nSedimentDebugTracers
+               do k = 1, nVertLevels
+                  sedimentDebugSettlingTendency(n, k, sedimentDebugCell) = &
+                     tracerGroupTend(n, k, sedimentDebugCell) - &
+                     sedimentDebugPrevTend(n, k)
+                  sedimentDebugPrevTend(n, k) = tracerGroupTend(n, k, sedimentDebugCell)
+               end do
+               end do
+            end if
 
             call ocn_tracer_sediment_surface_flux_compute(tracerGroup, forcingPool,  &
                                                           nCellsOwned, tracerGroupSurfaceFlux, &
@@ -1326,8 +1351,11 @@ contains
          if (sedimentDebugHere) then
             do n = 1, nSedimentDebugTracers
             do k = 1, nVertLevels
+               ! everything before advection except settling, which is
+               ! reported separately
                sedimentDebugPreAdvectionTendency(n, k, sedimentDebugCell) = &
-                  tracerGroupTend(n, k, sedimentDebugCell)
+                  tracerGroupTend(n, k, sedimentDebugCell) - &
+                  sedimentDebugSettlingTendency(n, k, sedimentDebugCell)
                sedimentDebugPrevTend(n, k) = tracerGroupTend(n, k, sedimentDebugCell)
             end do
             end do
@@ -1593,9 +1621,17 @@ contains
                   sedimentDebugPrevTend(n, k)
                sedimentDebugTotalTendency(n, k, sedimentDebugCell) = &
                   tracerGroupTend(n, k, sedimentDebugCell)
-               sedimentDebugFinal(n, k, sedimentDebugCell) = &
-                  sedimentDebugInitial(n, k, sedimentDebugCell) + &
-                  dt * tracerGroupTend(n, k, sedimentDebugCell)
+               ! tendencies are thickness weighted; this estimate uses the
+               ! current layer thickness and excludes implicit vertical mixing
+               if (layerThickness(k, sedimentDebugCell) > 0.0_RKIND) then
+                  sedimentDebugFinal(n, k, sedimentDebugCell) = &
+                     sedimentDebugInitial(n, k, sedimentDebugCell) + &
+                     dt * tracerGroupTend(n, k, sedimentDebugCell) &
+                     / layerThickness(k, sedimentDebugCell)
+               else
+                  sedimentDebugFinal(n, k, sedimentDebugCell) = &
+                     sedimentDebugInitial(n, k, sedimentDebugCell)
+               end if
             end do
             end do
 

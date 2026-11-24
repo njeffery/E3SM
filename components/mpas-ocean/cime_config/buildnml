@@ -771,6 +771,7 @@ def buildnml(case, caseroot, compname):
                 lines.append('    <var name="sedimentDebugCellMask"/>')
                 lines.append('    <var_array name="sedimentDebugInitial"/>')
                 lines.append('    <var_array name="sedimentDebugPreAdvectionTendency"/>')
+                lines.append('    <var_array name="sedimentDebugSettlingTendency"/>')
                 lines.append('    <var_array name="sedimentDebugAdvectionTendency"/>')
                 lines.append('    <var_array name="sedimentDebugHmixTendency"/>')
                 lines.append('    <var_array name="sedimentDebugSurfaceFluxTendency"/>')
