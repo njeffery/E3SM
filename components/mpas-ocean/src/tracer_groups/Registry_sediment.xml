@@ -472,5 +472,19 @@
 					description="Estimated sediment class 3 at the debug cell after the explicit tendencies, initial + dt*total tendency/h with the current layer thickness h; excludes implicit vertical mixing and the change in layer thickness"
 				/>
 			</var_array>
+			<var_array name="frazilSedimentTracersTendency" type="real" dimensions="nVertLevels nCells Time" packages="sedimentTracersPKG">
+				<var name="sediment1FrazilTend" array_group="sedimentFrazilTendGRP"
+					units="kg m^{-2} s^{-1}"
+					description="Thickness-weighted frazil tendency, sediment class 1"
+				/>
+				<var name="sediment2FrazilTend" array_group="sedimentFrazilTendGRP"
+					units="kg m^{-2} s^{-1}"
+					description="Thickness-weighted frazil tendency, sediment class 2"
+				/>
+				<var name="sediment3FrazilTend" array_group="sedimentFrazilTendGRP"
+					units="kg m^{-2} s^{-1}"
+					description="Thickness-weighted frazil tendency, sediment class 3"
+				/>
+			</var_array>
 		</var_struct>
 	</var_struct>

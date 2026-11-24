@@ -192,6 +192,7 @@ contains
     type (mpas_pool_type), pointer :: meshPool, statePool, &
                                       forcingPool, &
                                       ecosysFrazilForcingPool, &
+                                      sedimentAuxiliaryPool, &
                                       averagePool, scratchPool
 
     logical :: exists
@@ -784,6 +785,11 @@ contains
            call ocn_frazil_forcing_build_ecosys_arrays(domain, meshPool, forcingPool, statePool, &
               ecosysFrazilForcingPool,ierr)
         end if
+        if (config_use_sedimentTracers) then
+           call mpas_pool_get_subpool(forcingPool, 'sedimentAuxiliary', sedimentAuxiliaryPool)
+           call ocn_frazil_forcing_build_sediment_arrays(domain, meshPool, forcingPool, statePool, &
+              sedimentAuxiliaryPool, ierr)
+        end if
         call mpas_timer_start("land_ice_build_arrays", .false.)
         call ocn_surface_land_ice_fluxes_build_arrays(meshPool, forcingPool, scratchPool, &
                                                       statePool, err=ierr)
@@ -1061,6 +1067,7 @@ contains
 
       type (mpas_pool_type), pointer :: meshPool, statePool, forcingPool, averagePool, scratchPool
       type (mpas_pool_type), pointer :: ecosysFrazilForcingPool
+      type (mpas_pool_type), pointer :: sedimentAuxiliaryPool
 
       type (MPAS_Time_Type) :: currTime
       type (domain_type), pointer :: domain_ptr
@@ -1189,6 +1196,11 @@ contains
                call mpas_pool_get_subpool(forcingPool, 'ecosysFrazilForcing', ecosysFrazilForcingPool)
                call ocn_frazil_forcing_build_ecosys_arrays(domain, meshPool, forcingPool, statePool, &
                   ecosysFrazilForcingPool, ierr)
+            end if
+            if (config_use_sedimentTracers) then
+               call mpas_pool_get_subpool(forcingPool, 'sedimentAuxiliary', sedimentAuxiliaryPool)
+               call ocn_frazil_forcing_build_sediment_arrays(domain, meshPool, forcingPool, statePool, &
+                  sedimentAuxiliaryPool, ierr)
             end if
             call mpas_timer_start("land_ice_build_arrays", .false.)
             call ocn_surface_land_ice_fluxes_build_arrays(meshPool, &

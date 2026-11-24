@@ -49,6 +49,7 @@ module ocn_frazil_forcing
 
    public :: ocn_frazil_forcing_build_arrays, &
              ocn_frazil_forcing_build_ecosys_arrays, &
+             ocn_frazil_forcing_build_sediment_arrays, &
              ocn_frazil_forcing_tracers, &
              ocn_frazil_forcing_layer_thickness, &
              ocn_frazil_forcing_init
@@ -124,6 +125,8 @@ contains
       elseif (trim(groupName) == 'ecosysTracers' .and. config_use_ecosys_frazil_tendencies) then
          call ocn_frazil_forcing_ecosys_tracers(meshPool, tracersPool, forcingPool, tracersTend, &
                  ecosysFrazilForcingPool, err)
+      elseif (trim(groupName) == 'sedimentTracers') then
+         call ocn_frazil_forcing_sediment_tracers(meshPool, forcingPool, tracersTend, err)
       end if
 
       call mpas_timer_stop("tracer frazil")
@@ -388,6 +391,57 @@ contains
       !$omp end parallel
 
    end subroutine ocn_frazil_forcing_ecosys_tracers!}}}
+
+!***********************************************************************
+!
+!  routine ocn_frazil_forcing_sediment_tracers
+!
+!> \brief   Adds the sediment tracers forcing due to frazil
+!
+!-----------------------------------------------------------------------
+
+   subroutine ocn_frazil_forcing_sediment_tracers(meshPool, forcingPool, sedimentTracersTend, err)!{{{
+
+      type (mpas_pool_type), intent(in) :: meshPool !< Input: mesh information
+      type (mpas_pool_type), intent(inout) :: forcingPool !< Input: Forcing information
+      real (kind=RKIND), dimension(:,:,:), intent(inout) :: sedimentTracersTend !< Input/Output: tendency
+      integer, intent(out) :: err !< Output: Error flag
+
+      type (mpas_pool_type), pointer :: sedimentAuxiliaryPool
+      integer :: iCell, k, nCells, nTracersSediment, iTracer
+      integer, pointer, dimension(:) :: nCellsArray
+      integer, pointer, dimension(:) :: minLevelCell, maxLevelCell
+      real (kind=RKIND), dimension(:,:,:), pointer :: frazilSedimentTracersTendency
+
+      err = 0
+
+      if ( .not. frazilFormationOn ) return
+
+      call mpas_pool_get_dimension(meshPool, 'nCellsArray', nCellsArray)
+      call mpas_pool_get_array(meshPool, 'minLevelCell', minLevelCell)
+      call mpas_pool_get_array(meshPool, 'maxLevelCell', maxLevelCell)
+      call mpas_pool_get_subpool(forcingPool, 'sedimentAuxiliary', sedimentAuxiliaryPool)
+      call mpas_pool_get_array(sedimentAuxiliaryPool, 'frazilSedimentTracersTendency', &
+                               frazilSedimentTracersTendency)
+
+      ! frazil fields are needed only over 0 and 1 halos
+      nCells = nCellsArray( 2 )
+      nTracersSediment = size(frazilSedimentTracersTendency, dim=1)
+
+      !$omp parallel
+      !$omp do schedule(runtime) private(k,iTracer)
+      do iCell = 1, nCells
+         do k = minLevelCell(iCell), maxLevelCell(iCell)
+            do iTracer = 1, nTracersSediment
+               sedimentTracersTend(iTracer,k,iCell) = sedimentTracersTend(iTracer,k,iCell) &
+                  + frazilSedimentTracersTendency(iTracer,k,iCell)
+            end do
+        end do
+      end do
+      !$omp end do
+      !$omp end parallel
+
+   end subroutine ocn_frazil_forcing_sediment_tracers!}}}
 
 !***********************************************************************
 !
@@ -779,82 +833,137 @@ contains
    subroutine ocn_frazil_forcing_build_ecosys_arrays(domain, meshPool, forcingPool, statePool, &
                  ecosysFrazilForcingPool, err)!{{{
 
-      !-----------------------------------------------------------------
-      !
-      ! input variables
-      !
-      !-----------------------------------------------------------------
-
-      type (mpas_pool_type), pointer, intent(in) :: meshPool !< Input: Mesh information
-
-      !-----------------------------------------------------------------
-      !
-      ! input/output variables
-      !
-      !-----------------------------------------------------------------
       type (domain_type), intent(inout) :: domain
+      type (mpas_pool_type), pointer, intent(in) :: meshPool !< Input: Mesh information
       type (mpas_pool_type), pointer, intent(inout) :: statePool !< Input: State information
       type (mpas_pool_type), pointer, intent(inout) :: forcingPool !< Input: Forcing information
       type (mpas_pool_type), pointer, intent(inout) :: ecosysFrazilForcingPool !< Input: Forcing information
       integer, intent(inout) :: err !< Error flag
 
-      !-----------------------------------------------------------------
-      !
-      ! output variables
-      !
-      !-----------------------------------------------------------------
-
-      !-----------------------------------------------------------------
-      !
-      ! local variables
-      !
-      !-----------------------------------------------------------------
       type (mpas_pool_type), pointer :: tracersPool
-      
-      real (kind=RKIND), dimension(:,:,:), pointer :: frazilEcosysTracersTendency
-      integer, dimension(:), pointer :: landIceMask, landIceFloatingMask
+      real (kind=RKIND), dimension(:,:,:), pointer :: ecosysTracers, frazilEcosysTracersTendency
 
-      integer :: iCell, k, nCells, nTracersEcosys, n
-      integer, dimension(:), pointer :: nCellsArray
-      integer, pointer :: nVertLevels
-      real (kind=RKIND) :: dt, columnTemperatureMin
-
-      type (MPAS_timeInterval_type) :: timeStep
-
-      real (kind=RKIND) :: newFrazilIceThickness
-      real (kind=RKIND) :: sumNewFrazilIceThickness, newThicknessWeightedEcosysContent
-      real (kind=RKIND) :: meltedFrazilIceThickness, meltedThicknessWeightedEcosysContent
-      real (kind=RKIND) :: oceanFreezingTemperature
-      real (kind=RKIND) :: frazilEcosys ! ecosys concentration of frazil ice
-
-      real (kind=RKIND), pointer, dimension(:)     :: ssh
-      real (kind=RKIND), pointer, dimension(:,:)   :: layerThickness
-      real (kind=RKIND), pointer, dimension(:,:,:) :: activeTracers
-      real (kind=RKIND), pointer, dimension(:,:,:) :: ecosysTracers
-
-      real (kind=RKIND), pointer, dimension(:,:)     :: accumulatedFrazilIceEcosysNew
-      real (kind=RKIND), pointer, dimension(:,:)     :: accumulatedFrazilIceEcosysOld
-      
-      integer, dimension(:), pointer :: minLevelCell, maxLevelCell
-      integer, pointer :: indexTemperaturePtr !< index in tracers array for temperature
-      integer, pointer :: indexSalinityPtr !< index in tracers array for salinity
-      integer :: indexTemperature !< index in tracers array for temperature
-      integer :: indexSalinity !< index in tracers array for salinity
-      integer :: kBottomFrazil ! k index where testing for frazil begins
-
-      logical :: underFloatingLandIce, underLandIce ! indicates if we are under land ice
-
-      real (kind=RKIND) :: potential  ! scalar holding freezing/melt potential
-      real (kind=RKIND) :: freezingEnergy  ! energy available for freezing, positive definite
-      real (kind=RKIND) :: meltingEnergy ! energy available for melting, positive definite
-
-      real (kind=RKIND), allocatable, dimension(:) :: sumNewThicknessWeightedEcosysContent
       err = 0
 
       ! if frazil is not enabled, return
       if(.not. frazilFormationOn) return
 
       call mpas_timer_start("ecosys frazil source-sink")
+
+      ! note: state information is used to produce tendencies, so always grab "new" time level
+      call mpas_pool_get_subpool(statePool, 'tracers', tracersPool)
+      call mpas_pool_get_array(tracersPool, 'ecosysTracers', ecosysTracers, 1)
+      call mpas_pool_get_array(ecosysFrazilForcingPool, 'frazilEcosysTracersTendency', frazilEcosysTracersTendency)
+
+      call frazil_forcing_build_group_tendency(domain, meshPool, forcingPool, statePool, &
+              ecosysTracers, frazilEcosysTracersTendency, err)
+
+      call mpas_timer_stop("ecosys frazil source-sink")
+
+   end subroutine ocn_frazil_forcing_build_ecosys_arrays!}}}
+
+!***********************************************************************
+!
+!  routine ocn_frazil_forcing_build_sediment_arrays
+!
+!> \brief   computes sediment tracer tendencies from frazil within the ocean
+!> \details
+!>  Same treatment as the ecosys tracers: sediment is taken up with frazil
+!>  where it forms (porosity times the ocean concentration when frazil
+!>  porosity is on, the ocean concentration otherwise), released where
+!>  frazil melts higher in the column, and the remainder is returned to the
+!>  top layer, so sediment is conserved in the ocean. There is no sea ice
+!>  sediment coupling yet.
+!
+!-----------------------------------------------------------------------
+
+   subroutine ocn_frazil_forcing_build_sediment_arrays(domain, meshPool, forcingPool, statePool, &
+                 sedimentAuxiliaryPool, err)!{{{
+
+      type (domain_type), intent(inout) :: domain
+      type (mpas_pool_type), pointer, intent(in) :: meshPool !< Input: Mesh information
+      type (mpas_pool_type), pointer, intent(inout) :: statePool !< Input: State information
+      type (mpas_pool_type), pointer, intent(inout) :: forcingPool !< Input: Forcing information
+      type (mpas_pool_type), pointer, intent(inout) :: sedimentAuxiliaryPool !< Input: sediment fields
+      integer, intent(inout) :: err !< Error flag
+
+      type (mpas_pool_type), pointer :: tracersPool
+      real (kind=RKIND), dimension(:,:,:), pointer :: sedimentTracers, frazilSedimentTracersTendency
+
+      err = 0
+
+      ! if frazil is not enabled, return
+      if(.not. frazilFormationOn) return
+
+      call mpas_timer_start("sediment frazil source-sink")
+
+      ! note: state information is used to produce tendencies, so always grab "new" time level
+      call mpas_pool_get_subpool(statePool, 'tracers', tracersPool)
+      call mpas_pool_get_array(tracersPool, 'sedimentTracers', sedimentTracers, 1)
+      call mpas_pool_get_array(sedimentAuxiliaryPool, 'frazilSedimentTracersTendency', &
+                               frazilSedimentTracersTendency)
+
+      call frazil_forcing_build_group_tendency(domain, meshPool, forcingPool, statePool, &
+              sedimentTracers, frazilSedimentTracersTendency, err)
+
+      call mpas_timer_stop("sediment frazil source-sink")
+
+   end subroutine ocn_frazil_forcing_build_sediment_arrays!}}}
+
+!***********************************************************************
+!
+!  routine frazil_forcing_build_group_tendency
+!
+!> \brief   frazil tendency for a passive tracer group
+!> \author  Nicole Jeffery
+!> \date    04/24/2025
+!> \details
+!>  Computes thickness-weighted tracer tendencies due to frazil ice for a
+!>  passive tracer group. Tracer is taken up with frazil where it forms,
+!>  released where frazil melts, and the total tracer content of the
+!>  accumulated internal frazil is released into the surface ocean layer,
+!>  because the sea ice model computes its own frazil tracer uptake from the
+!>  surface ocean concentration and the frazil mass flux.
+!
+!-----------------------------------------------------------------------
+
+   subroutine frazil_forcing_build_group_tendency(domain, meshPool, forcingPool, statePool, &
+                 groupTracers, frazilTracersTendency, err)!{{{
+
+      type (domain_type), intent(inout) :: domain
+      type (mpas_pool_type), pointer, intent(in) :: meshPool !< Input: Mesh information
+      type (mpas_pool_type), pointer, intent(inout) :: statePool !< Input: State information
+      type (mpas_pool_type), pointer, intent(inout) :: forcingPool !< Input: Forcing information
+      real (kind=RKIND), dimension(:,:,:), intent(in) :: groupTracers !< Input: tracer group
+      real (kind=RKIND), dimension(:,:,:), intent(out) :: frazilTracersTendency !< Output: frazil tendency
+      integer, intent(inout) :: err !< Error flag
+
+      type (mpas_pool_type), pointer :: tracersPool
+      integer, dimension(:), pointer :: landIceMask, landIceFloatingMask
+      integer :: iCell, k, nCells, nTracersGroup, n
+      integer, dimension(:), pointer :: nCellsArray
+      integer, pointer :: nVertLevels
+      real (kind=RKIND) :: dt, columnTemperatureMin
+      type (MPAS_timeInterval_type) :: timeStep
+      real (kind=RKIND) :: newFrazilIceThickness
+      real (kind=RKIND) :: sumNewFrazilIceThickness, newThicknessWeightedContent
+      real (kind=RKIND) :: meltedFrazilIceThickness, meltedThicknessWeightedContent
+      real (kind=RKIND) :: oceanFreezingTemperature
+      real (kind=RKIND) :: frazilTracer ! tracer concentration of frazil ice
+      real (kind=RKIND), pointer, dimension(:)     :: ssh
+      real (kind=RKIND), pointer, dimension(:,:)   :: layerThickness
+      real (kind=RKIND), pointer, dimension(:,:,:) :: activeTracers
+      integer, dimension(:), pointer :: minLevelCell, maxLevelCell
+      integer, pointer :: indexTemperaturePtr !< index in tracers array for temperature
+      integer, pointer :: indexSalinityPtr !< index in tracers array for salinity
+      integer :: indexTemperature !< index in tracers array for temperature
+      integer :: indexSalinity !< index in tracers array for salinity
+      integer :: kBottomFrazil ! k index where testing for frazil begins
+      logical :: underFloatingLandIce, underLandIce ! indicates if we are under land ice
+      real (kind=RKIND) :: potential  ! scalar holding freezing/melt potential
+      real (kind=RKIND) :: freezingEnergy  ! energy available for freezing, positive definite
+      real (kind=RKIND) :: meltingEnergy ! energy available for melting, positive definite
+      real (kind=RKIND), allocatable, dimension(:) :: sumNewThicknessWeightedContent
 
       ! get pool pointers
       call mpas_pool_get_subpool(statePool, 'tracers', tracersPool)
@@ -876,13 +985,8 @@ contains
       ! get arrays
       ! note: state information is used to produce tendencies, so always grab "new" time level
       call mpas_pool_get_array(statePool, 'layerThickness', layerThickness, 1)
-      ! Don't need this because it's always zero.  Frazil ecosys tracers are expelled at the surface
-      !call mpas_pool_get_array(statePool, 'accumulatedFrazilIceEcosys', accumulatedFrazilIceEcosysNew, 2)
-      !call mpas_pool_get_array(statePool, 'accumulatedFrazilIceEcosys', accumulatedFrazilIceEcosysOld, 1)
       call mpas_pool_get_array(statePool, 'ssh', ssh, 1)
       call mpas_pool_get_array(tracersPool, 'activeTracers', activeTracers, 1)
-      call mpas_pool_get_array(tracersPool, 'ecosysTracers', ecosysTracers, 1)
-      call mpas_pool_get_array(ecosysFrazilForcingPool, 'frazilEcosysTracersTendency', frazilEcosysTracersTendency)
       call mpas_pool_get_array(forcingPool, 'landIceMask', landIceMask)
       call mpas_pool_get_array(forcingPool, 'landIceFloatingMask', landIceFloatingMask)
 
@@ -890,11 +994,11 @@ contains
       timeStep = mpas_get_clock_timestep(domain % clock, ierr=err)
       call mpas_get_timeInterval(timeStep, dt=dt)
 
-      nTracersEcosys = size(ecosysTracers, dim=1)
-      allocate (sumNewThicknessWeightedEcosysContent(nTracersEcosys))
+      nTracersGroup = size(groupTracers, dim=1)
+      allocate (sumNewThicknessWeightedContent(nTracersGroup))
 
       ! initialize frazil tendency fields
-      frazilEcosysTracersTendency(:,:,:) = 0.0_RKIND
+      frazilTracersTendency(:,:,:) = 0.0_RKIND
 
       ! frazil fields are needed only over 0 and 1 halos
       nCells = nCellsArray( 2 )
@@ -903,10 +1007,10 @@ contains
       !$omp parallel
       !$omp do schedule(runtime) &
       !$omp private(underFloatingLandIce, underLandIce, kBottomFrazil, columnTemperatureMin, k, sumNewFrazilIceThickness, &
-      !$omp         sumNewThicknessWeightedEcosysContent, oceanFreezingTemperature, potential, &
-      !$omp         freezingEnergy, meltingEnergy, frazilEcosys, newFrazilIceThickness, &
-      !$omp         newThicknessWeightedEcosysContent, meltedFrazilIceThickness, &
-      !$omp         meltedThicknessWeightedEcosysContent, n)
+      !$omp         sumNewThicknessWeightedContent, oceanFreezingTemperature, potential, &
+      !$omp         freezingEnergy, meltingEnergy, frazilTracer, newFrazilIceThickness, &
+      !$omp         newThicknessWeightedContent, meltedFrazilIceThickness, &
+      !$omp         meltedThicknessWeightedContent, n)
       do iCell=1,nCells
 
         underLandIce = .false.
@@ -955,10 +1059,9 @@ contains
         ! test min temperature agains max freezing temperature to see if we should even consider creating frazil
         if (columnTemperatureMin > config_frazil_maximum_freezing_temperature) cycle
 
-
         ! initialize the sum of new frazil ice created
         sumNewFrazilIceThickness = 0.0_RKIND
-        sumNewThicknessWeightedEcosysContent(:) = 0.0_RKIND
+        sumNewThicknessWeightedContent(:) = 0.0_RKIND
 
         ! loop from maximum depth of frazil creation to surface
         do k = kBottomFrazil, minLevelCell(iCell), -1
@@ -985,17 +1088,15 @@ contains
              ! keep track of sum of frazil ice
              sumNewFrazilIceThickness = sumNewFrazilIceThickness + newFrazilIceThickness
 
-             do n = 1, nTracersEcosys
-                frazilEcosys = (config_frazil_ice_porosity*usePorosity + (1-usePorosity)) * ecosysTracers(n, k, iCell)
-                ! needs to be an array
-                newThicknessWeightedEcosysContent = newFrazilIceThickness * frazilEcosys
+             do n = 1, nTracersGroup
+                frazilTracer = (config_frazil_ice_porosity*usePorosity + (1-usePorosity)) * groupTracers(n, k, iCell)
+                newThicknessWeightedContent = newFrazilIceThickness * frazilTracer
 
-                ! bgc is extracted with the frazil
-                ! forcingPool
-                frazilEcosysTracersTendency(n,k,iCell) =  -newThicknessWeightedEcosysContent / dt
+                ! tracer is extracted with the frazil
+                frazilTracersTendency(n,k,iCell) =  -newThicknessWeightedContent / dt
 
-                sumNewThicknessWeightedEcosysContent(n) = sumNewThicknessWeightedEcosysContent(n) + &
-                    newThicknessWeightedEcosysContent
+                sumNewThicknessWeightedContent(n) = sumNewThicknessWeightedContent(n) + &
+                    newThicknessWeightedContent
              end do
 
           else
@@ -1014,17 +1115,16 @@ contains
                meltedFrazilIceThickness = min(meltedFrazilIceThickness, layerThickness(k,iCell) &
                                        * config_frazil_fractional_thickness_limit)
 
-               do n = 1, nTracersEcosys
+               do n = 1, nTracersGroup
+                  ! assign some tracer to the melted ice
+                  meltedThicknessWeightedContent = meltedFrazilIceThickness &
+                                                 * ( sumNewThicknessWeightedContent(n) / sumNewFrazilIceThickness )
 
-                  ! assign some ecosys tracer to the melted ice
-                  meltedThicknessWeightedEcosysContent = meltedFrazilIceThickness &
-                                                 * ( sumNewThicknessWeightedEcosysContent(n) / sumNewFrazilIceThickness )
-
-                  ! ecosys tracer is released into ocean with the melting frazil forcingPool
-                  frazilEcosysTracersTendency(n,k,iCell) = + meltedThicknessWeightedEcosysContent/ dt
+                  ! tracer is released into ocean with the melting frazil
+                  frazilTracersTendency(n,k,iCell) = + meltedThicknessWeightedContent/ dt
 
                   ! keep track of new frazil ice
-                  sumNewThicknessWeightedEcosysContent(n) = max(0.0_RKIND,sumNewThicknessWeightedEcosysContent(n) - meltedThicknessWeightedEcosysContent)
+                  sumNewThicknessWeightedContent(n) = max(0.0_RKIND,sumNewThicknessWeightedContent(n) - meltedThicknessWeightedContent)
               end do
               sumNewFrazilIceThickness = max(0.0_RKIND,sumNewFrazilIceThickness - meltedFrazilIceThickness)
 
@@ -1033,26 +1133,25 @@ contains
           endif  ! if (freezingEnergy < 0)
 
         enddo                    ! do k=kBottom,minLevelCell,-1
-       
-        if (sumNewFrazilIceThickness > 0.0_RKIND) then
-            do n = 1, nTracersEcosys
-               !NJ: Sea ice computes it's own frazil ecosys concentration from the surface ocean
-               !For now, expel all ecosys at the surface
-               newThicknessWeightedEcosysContent = 0.0_RKIND
 
-               frazilEcosysTracersTendency(n,minLevelCell(iCell),iCell) = &
-                  frazilEcosysTracersTendency(n,minLevelCell(iCell),iCell)  + &
-                  max(0.0_RKIND,(sumNewThicknessWeightedEcosysContent(n) -  newThicknessWeightedEcosysContent) ) / dt
+        if (sumNewFrazilIceThickness > 0.0_RKIND) then
+            do n = 1, nTracersGroup
+               ! the sea ice computes its own frazil tracer uptake from the surface ocean,
+               ! so release the tracer in the remaining frazil into the top layer
+               newThicknessWeightedContent = 0.0_RKIND
+               frazilTracersTendency(n,minLevelCell(iCell),iCell) = &
+                  frazilTracersTendency(n,minLevelCell(iCell),iCell)  + &
+                  max(0.0_RKIND,(sumNewThicknessWeightedContent(n) -  newThicknessWeightedContent) ) / dt
             end do
          endif ! if frazil ice is formed
+
       enddo   ! do iCell = 1, nCells
       !$omp end do
       !$omp end parallel
 
-      deallocate (sumNewThicknessWeightedEcosysContent)
-      call mpas_timer_stop("ecosys frazil source-sink")
+      deallocate (sumNewThicknessWeightedContent)
 
-   end subroutine ocn_frazil_forcing_build_ecosys_arrays!}}}
+   end subroutine frazil_forcing_build_group_tendency!}}}
 
 !***********************************************************************
 !
