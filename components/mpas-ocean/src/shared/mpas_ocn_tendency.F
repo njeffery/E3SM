@@ -90,7 +90,8 @@ module ocn_tendency
              ocn_tend_vel, &
              ocn_tend_tracer, &
              ocn_tend_freq_filtered_thickness, &
-             ocn_tendency_init
+             ocn_tendency_init, &
+             ocn_tend_sediment_debug_init
 
    !--------------------------------------------------------------------
    !
@@ -99,6 +100,11 @@ module ocn_tendency
    !--------------------------------------------------------------------
 
    integer :: apply_Dhf_to_hhf, use_highFreqThick_restore
+
+   ! sediment debug column, chosen once in ocn_tend_sediment_debug_init
+   integer :: sedimentDebugGlobalCell = 0   ! global cell ID of the debug column
+   integer :: sedimentDebugLocalCell = 0    ! local index on the owning rank, 0 elsewhere
+   logical :: sedimentDebugFieldsZeroed = .false.
 
 !***********************************************************************
 
@@ -683,7 +689,8 @@ contains
          sedimentDebugPrevTend
       integer, parameter :: num_fields = 8
       logical, dimension(:), allocatable :: skipTracer
-      logical :: sedimentDebugActive
+      logical :: sedimentDebugActive   ! sediment debug diagnostics requested
+      logical :: sedimentDebugHere     ! this rank owns the sediment debug column
       integer :: sedimentDebugCell, nSedimentDebugTracers
       character(len=20), dimension(num_fields) :: &
             fieldNames = [character(len=20) :: &
@@ -864,6 +871,7 @@ contains
                                   tracerGroupSurfaceFlux)
 
          sedimentDebugActive = .false.
+         sedimentDebugHere = .false.
          sedimentDebugCell = 0
          nSedimentDebugTracers = min(3, nTracersGroup)
          if (groupName == 'sedimentTracers') then
@@ -905,7 +913,8 @@ contains
                call mpas_pool_get_array(meshPool, 'latCell', latCell)
                call mpas_pool_get_array(meshPool, 'lonCell', lonCell)
 
-               sedimentDebugCell = config_sediment_debug_cell
+               sedimentDebugCell = sedimentDebugLocalCell
+               sedimentDebugHere = (sedimentDebugCell > 0)
             end if
          end if
 
@@ -952,19 +961,26 @@ contains
                                   modifiedGroupName, &
                                   tracerGroupSurfaceFluxRemoved)
 
-         if (sedimentDebugActive) then
-            if (sedimentDebugCell <= 0) then
-               call ocn_select_sediment_debug_cell(nCellsAll, sedimentDebugCell, &
-                                                 maxLevelCell, latCell, lonCell, &
-                                                 tracerGroupSurfaceFluxRunoff)
-            end if
+         if (sedimentDebugActive .and. .not. sedimentDebugFieldsZeroed) then
+            ! Zero the debug fields once on every rank. Afterwards only the
+            ! debug column is written, by the rank that owns it.
+            sedimentDebugCellMask(:) = 0.0_RKIND
+            sedimentDebugInitial(:,:,:) = 0.0_RKIND
+            sedimentDebugPreAdvectionTendency(:,:,:) = 0.0_RKIND
+            sedimentDebugAdvectionTendency(:,:,:) = 0.0_RKIND
+            sedimentDebugHmixTendency(:,:,:) = 0.0_RKIND
+            sedimentDebugSurfaceFluxTendency(:,:,:) = 0.0_RKIND
+            sedimentDebugNonLocalTendency(:,:,:) = 0.0_RKIND
+            sedimentDebugOtherTendency(:,:,:) = 0.0_RKIND
+            sedimentDebugTotalTendency(:,:,:) = 0.0_RKIND
+            sedimentDebugFinal(:,:,:) = 0.0_RKIND
+            if (sedimentDebugHere) sedimentDebugCellMask(sedimentDebugCell) = 1.0_RKIND
+            sedimentDebugFieldsZeroed = .true.
+         end if
 
-            if (sedimentDebugCell >= 1 .and. sedimentDebugCell <= nCellsAll) then
-               allocate(sedimentDebugPrevTend(nSedimentDebugTracers, nVertLevels))
-               sedimentDebugPrevTend(:,:) = 0.0_RKIND
-               call mpas_log_write('sediment debug diagnostics active at cell $i', &
-                                   intArgs=(/sedimentDebugCell/))
-            end if
+         if (sedimentDebugHere) then
+            allocate(sedimentDebugPrevTend(nSedimentDebugTracers, nVertLevels))
+            sedimentDebugPrevTend(:,:) = 0.0_RKIND
          end if
 
          !
@@ -1004,27 +1020,13 @@ contains
          !$omp end parallel
          end if
 
-         if (sedimentDebugActive) then
-            if (sedimentDebugCell >= 1 .and. sedimentDebugCell <= nCellsAll) then
-               sedimentDebugCellMask(:) = 0.0_RKIND
-               sedimentDebugCellMask(sedimentDebugCell) = 1.0_RKIND
-               sedimentDebugInitial(:,:,:) = 0.0_RKIND
-               sedimentDebugPreAdvectionTendency(:,:,:) = 0.0_RKIND
-               sedimentDebugAdvectionTendency(:,:,:) = 0.0_RKIND
-               sedimentDebugHmixTendency(:,:,:) = 0.0_RKIND
-               sedimentDebugSurfaceFluxTendency(:,:,:) = 0.0_RKIND
-               sedimentDebugNonLocalTendency(:,:,:) = 0.0_RKIND
-               sedimentDebugOtherTendency(:,:,:) = 0.0_RKIND
-               sedimentDebugTotalTendency(:,:,:) = 0.0_RKIND
-               sedimentDebugFinal(:,:,:) = 0.0_RKIND
-
-               do n = 1, nSedimentDebugTracers
-               do k = 1, nVertLevels
-                  sedimentDebugInitial(n, k, sedimentDebugCell) = &
-                     tracerGroup(n, k, sedimentDebugCell)
-               end do
-               end do
-            end if
+         if (sedimentDebugHere) then
+            do n = 1, nSedimentDebugTracers
+            do k = 1, nVertLevels
+               sedimentDebugInitial(n, k, sedimentDebugCell) = &
+                  tracerGroup(n, k, sedimentDebugCell)
+            end do
+            end do
          end if
 
          !
@@ -1321,7 +1323,7 @@ contains
             call mpas_timer_stop("TTD " // groupName)
          endif ! TTD
 
-         if (sedimentDebugActive) then
+         if (sedimentDebugHere) then
             do n = 1, nSedimentDebugTracers
             do k = 1, nVertLevels
                sedimentDebugPreAdvectionTendency(n, k, sedimentDebugCell) = &
@@ -1355,7 +1357,7 @@ contains
          !$acc    copyout(tracerGroupTend) &
          !$acc    delete(tracerGroup)
 
-         if (sedimentDebugActive) then
+         if (sedimentDebugHere) then
             do n = 1, nSedimentDebugTracers
             do k = 1, nVertLevels
                sedimentDebugAdvectionTendency(n, k, sedimentDebugCell) = &
@@ -1414,7 +1416,7 @@ contains
             !$omp end parallel
          endif ! compute budgets
 
-         if (sedimentDebugActive) then
+         if (sedimentDebugHere) then
             do n = 1, nSedimentDebugTracers
             do k = 1, nVertLevels
                sedimentDebugHmixTendency(n, k, sedimentDebugCell) = &
@@ -1457,7 +1459,7 @@ contains
                                tracerGroupTend, err)
          end if
 
-         if (sedimentDebugActive) then
+         if (sedimentDebugHere) then
             do n = 1, nSedimentDebugTracers
             do k = 1, nVertLevels
                sedimentDebugSurfaceFluxTendency(n, k, sedimentDebugCell) = &
@@ -1567,7 +1569,7 @@ contains
             call mpas_timer_stop("non-local flux from KPP")
          end if ! KPP
 
-         if (sedimentDebugActive) then
+         if (sedimentDebugHere) then
             do n = 1, nSedimentDebugTracers
             do k = 1, nVertLevels
                sedimentDebugNonLocalTendency(n, k, sedimentDebugCell) = &
@@ -1583,7 +1585,7 @@ contains
          call ocn_frazil_forcing_tracers(meshPool, tracersPool, &
                      groupName, forcingPool, tracerGroupTend, ecosysFrazilForcingPool, err)
 
-         if (sedimentDebugActive) then
+         if (sedimentDebugHere) then
             do n = 1, nSedimentDebugTracers
             do k = 1, nVertLevels
                sedimentDebugOtherTendency(n, k, sedimentDebugCell) = &
@@ -1618,72 +1620,98 @@ contains
 
 !***********************************************************************
 !
-!  routine ocn_select_sediment_debug_cell
+!  routine ocn_tend_sediment_debug_init
 !
-!> \brief   Select the sediment debug column
-!> \details Uses an explicitly requested cell when provided. Otherwise it
-!>  attempts to choose a runoff-receiving cell in an Ob-mouth Arctic sector
-!>  and falls back to the nearest wet cell to the Ob mouth location.
+!> \brief   Select the sediment debug column once, on the rank that owns it
+!> \details
+!>  config_sediment_debug_cell is a global cell ID (indexToCellID). If it
+!>  is 0 or less, the ocean cell nearest the Ob River mouth is used. The
+!>  column is chosen among owned cells only, consistently across all MPI
+!>  ranks, so exactly one rank writes the debug diagnostics.
 !
 !-----------------------------------------------------------------------
 
-   subroutine ocn_select_sediment_debug_cell(nCells, requestedCell, &
-                                             maxLevelCellIn, latCellIn, lonCellIn, &
-                                             tracerGroupSurfaceFluxRunoff)
+   subroutine ocn_tend_sediment_debug_init(domain, err)!{{{
 
-      integer, intent(in) :: nCells
-      integer, intent(inout) :: requestedCell
-      integer, dimension(:), intent(in) :: maxLevelCellIn
-      real (kind=RKIND), dimension(:), intent(in) :: latCellIn, lonCellIn
-      real (kind=RKIND), dimension(:,:), intent(in) :: tracerGroupSurfaceFluxRunoff
+      type (domain_type), intent(inout) :: domain !< Input/Output: domain
+      integer, intent(out) :: err                 !< Output: error flag
 
-      integer :: iCell
-      integer :: selectedCell
-      real (kind=RKIND) :: bestRunoff, bestDist2, dist2, dlon
-      real (kind=RKIND) :: latDeg, lonDeg
+      logical, pointer :: config_sediment_debug
+      integer, pointer :: config_sediment_debug_cell
+
+      integer :: iCell, targetCell, candidateCell, nFound, isOwner
+      real (kind=RKIND) :: dlon, dist2, localBest, globalBest
+      real (kind=RKIND) :: latLocal, lonLocal, latSelected, lonSelected
+
       real (kind=RKIND), parameter :: deg2rad = 0.017453292519943295_RKIND
       real (kind=RKIND), parameter :: obLat = 66.6_RKIND * deg2rad
       real (kind=RKIND), parameter :: obLon = 71.3_RKIND * deg2rad
-      real (kind=RKIND), parameter :: minLat = 60.0_RKIND
-      real (kind=RKIND), parameter :: maxLat = 78.0_RKIND
-      real (kind=RKIND), parameter :: minLon = 55.0_RKIND
-      real (kind=RKIND), parameter :: maxLon = 95.0_RKIND
 
-      bestRunoff = -1.0_RKIND
-      do iCell = 1, nCells
-         if (maxLevelCellIn(iCell) <= 0) cycle
+      err = 0
+      sedimentDebugGlobalCell = 0
+      sedimentDebugLocalCell = 0
+      sedimentDebugFieldsZeroed = .false.
 
-         latDeg = latCellIn(iCell) / deg2rad
-         lonDeg = modulo(lonCellIn(iCell) / deg2rad + 360.0_RKIND, 360.0_RKIND)
-         if (latDeg >= minLat .and. latDeg <= maxLat .and. &
-             lonDeg >= minLon .and. lonDeg <= maxLon) then
-            if (tracerGroupSurfaceFluxRunoff(1, iCell) > bestRunoff) then
-               bestRunoff = tracerGroupSurfaceFluxRunoff(1, iCell)
-               selectedCell = iCell
-            end if
-         end if
-      end do
-      if (selectedCell > 0 .and. bestRunoff > 0.0_RKIND) then
-         requestedCell = selectedCell
+      call mpas_pool_get_config(domain % configs, 'config_sediment_debug', config_sediment_debug)
+      if (.not. config_sediment_debug) return
+      call mpas_pool_get_config(domain % configs, 'config_sediment_debug_cell', config_sediment_debug_cell)
+
+      if (config_sediment_debug_cell > 0) then
+         targetCell = config_sediment_debug_cell
+      else
+         ! nearest owned ocean cell to the Ob River mouth on this rank
+         localBest = huge(1.0_RKIND)
+         candidateCell = huge(1)
+         do iCell = 1, nCellsOwned
+            if (maxLevelCell(iCell) <= 0) cycle
+            dlon = abs(lonCell(iCell) - obLon)
+            if (dlon > pii) dlon = 2.0_RKIND*pii - dlon
+            dist2 = (latCell(iCell) - obLat)**2 + dlon**2
+            if (dist2 < localBest) then
+               localBest = dist2
+               candidateCell = indexToCellID(iCell)
+            endif
+         enddo
+         ! nearest over all ranks; ties go to the smallest global ID
+         call mpas_dmpar_min_real(domain % dminfo, localBest, globalBest)
+         if (localBest > globalBest) candidateCell = huge(1)
+         call mpas_dmpar_min_int(domain % dminfo, candidateCell, targetCell)
+      endif
+
+      ! find the owned local cell with that global ID
+      do iCell = 1, nCellsOwned
+         if (indexToCellID(iCell) == targetCell) then
+            sedimentDebugLocalCell = iCell
+            exit
+         endif
+      enddo
+
+      isOwner = 0
+      latLocal = 0.0_RKIND
+      lonLocal = 0.0_RKIND
+      if (sedimentDebugLocalCell > 0) then
+         isOwner = 1
+         latLocal = latCell(sedimentDebugLocalCell) / deg2rad
+         lonLocal = lonCell(sedimentDebugLocalCell) / deg2rad
+      endif
+      call mpas_dmpar_sum_int(domain % dminfo, isOwner, nFound)
+      call mpas_dmpar_sum_real(domain % dminfo, latLocal, latSelected)
+      call mpas_dmpar_sum_real(domain % dminfo, lonLocal, lonSelected)
+
+      if (nFound /= 1) then
+         call mpas_log_write('sediment debug: global cell ID $i is owned by $i ranks; ' // &
+                             'config_sediment_debug_cell must be a valid global cell ID', &
+                             MPAS_LOG_CRIT, intArgs=(/targetCell, nFound/))
+         err = 1
          return
       endif
 
-      bestDist2 = huge(1.0_RKIND)
-      do iCell = 1, nCells
-         if (maxLevelCellIn(iCell) <= 0) cycle
-         dlon = abs(lonCellIn(iCell) - obLon)
-         if (dlon > 3.14159265358979323846_RKIND) then
-            dlon = 6.28318530717958647692_RKIND - dlon
-         end if
-         dist2 = (latCellIn(iCell) - obLat)**2 + dlon**2
-         if (dist2 < bestDist2) then
-            bestDist2 = dist2
-            selectedCell = iCell
-            requestedCell = selectedCell
-         end if
-      end do
+      sedimentDebugGlobalCell = targetCell
+      call mpas_log_write('sediment debug diagnostics active at global cell ID $i ' // &
+                          '(lat $r, lon $r)', intArgs=(/sedimentDebugGlobalCell/), &
+                          realArgs=(/latSelected, lonSelected/))
 
-   end subroutine ocn_select_sediment_debug_cell
+   end subroutine ocn_tend_sediment_debug_init!}}}
 
 !***********************************************************************
 !
