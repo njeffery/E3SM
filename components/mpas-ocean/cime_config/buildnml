@@ -38,7 +38,7 @@ def _read_namelist_logical_value(namelist_path, option_name, default=False):
     return value
 
 ###############################################################################
-def _append_sediment_aux_output(lines, include_debug_fields):
+def _append_sediment_aux_output(lines):
 ###############################################################################
     lines.append('    <var name="bottomStressCellSediment"/>')
     lines.append('    <var name="sedimentBedMass1"/>')
@@ -50,18 +50,6 @@ def _append_sediment_aux_output(lines, include_debug_fields):
     lines.append('    <var name="sedimentErosionFlux1"/>')
     lines.append('    <var name="sedimentErosionFlux2"/>')
     lines.append('    <var name="sedimentErosionFlux3"/>')
-
-    if include_debug_fields:
-        lines.append('    <var name="sedimentDebugCellMask"/>')
-        lines.append('    <var_array name="sedimentDebugInitial"/>')
-        lines.append('    <var_array name="sedimentDebugPreAdvectionTendency"/>')
-        lines.append('    <var_array name="sedimentDebugAdvectionTendency"/>')
-        lines.append('    <var_array name="sedimentDebugHmixTendency"/>')
-        lines.append('    <var_array name="sedimentDebugSurfaceFluxTendency"/>')
-        lines.append('    <var_array name="sedimentDebugNonLocalTendency"/>')
-        lines.append('    <var_array name="sedimentDebugOtherTendency"/>')
-        lines.append('    <var_array name="sedimentDebugTotalTendency"/>')
-        lines.append('    <var_array name="sedimentDebugFinal"/>')
 
 ###############################################################################
 def buildnml(case, caseroot, compname):
@@ -736,7 +724,7 @@ def buildnml(case, caseroot, compname):
             if  ocn_sediment == 'true':
                 lines.append('    <var_array name="sedimentTracers"/>')
                 lines.append('    <var_array name="sedimentTracersSurfaceFlux"/>')
-                _append_sediment_aux_output(lines, sediment_debug_enabled)
+                _append_sediment_aux_output(lines)
             lines.append('</stream>')
             lines.append('')
             lines.append('<!--')
@@ -761,6 +749,38 @@ def buildnml(case, caseroot, compname):
             lines.append('')
             lines.append('</stream>')
             lines.append('')
+            if sediment_debug_enabled:
+                # Sediment debug column diagnostics (config_sediment_debug = .true.).
+                # Instantaneous values every hour; to write every time step, set
+                # output_interval to the ocean time step (config_dt) in a copy of
+                # streams.ocean in SourceMods/src.mpaso.
+                lines.append('<stream name="sedimentDebugOutput"')
+                lines.append('        type="output"')
+                lines.append('        io_type="{}"'.format(io_type_str))
+                lines.append('        filename_template="{}.mpaso{}.sedimentDebug.$Y-$M-$D.nc"'.format(casename, inst_string))
+                lines.append('        reference_time="01-01-01_00:00:00"')
+                lines.append('        filename_interval="0000-00-01_00:00:00"')
+                lines.append('        clobber_mode="truncate"')
+                lines.append('        output_interval="0000-00-00_01:00:00">')
+                lines.append('')
+                lines.append('    <var name="xtime"/>')
+                lines.append('    <var name="latCell"/>')
+                lines.append('    <var name="lonCell"/>')
+                lines.append('    <var name="indexToCellID"/>')
+                lines.append('    <var name="layerThickness"/>')
+                lines.append('    <var name="sedimentDebugCellMask"/>')
+                lines.append('    <var_array name="sedimentDebugInitial"/>')
+                lines.append('    <var_array name="sedimentDebugPreAdvectionTendency"/>')
+                lines.append('    <var_array name="sedimentDebugAdvectionTendency"/>')
+                lines.append('    <var_array name="sedimentDebugHmixTendency"/>')
+                lines.append('    <var_array name="sedimentDebugSurfaceFluxTendency"/>')
+                lines.append('    <var_array name="sedimentDebugNonLocalTendency"/>')
+                lines.append('    <var_array name="sedimentDebugOtherTendency"/>')
+                lines.append('    <var_array name="sedimentDebugTotalTendency"/>')
+                lines.append('    <var_array name="sedimentDebugFinal"/>')
+                lines.append('')
+                lines.append('</stream>')
+                lines.append('')
             lines.append('<!--')
             lines.append('Streams between this line and the auxiliary stream line below are analysis member streams.')
             lines.append('They can be used to perform online analysis of the simulation and control the output of')
@@ -1060,7 +1080,7 @@ def buildnml(case, caseroot, compname):
             if  ocn_sediment == 'true':
                 lines.append('    <var_array name="sedimentTracers"/>')
                 lines.append('    <var_array name="sedimentTracersSurfaceFlux"/>')
-                _append_sediment_aux_output(lines, sediment_debug_enabled)
+                _append_sediment_aux_output(lines)
             lines.append('</stream>')
             lines.append('')
             lines.append('<stream name="mixedLayerDepthsOutput"')
@@ -1353,7 +1373,7 @@ def buildnml(case, caseroot, compname):
             if  ocn_sediment == 'true':
                 lines.append('    <var_array name="sedimentTracers"/>')
                 lines.append('    <var_array name="sedimentTracersSurfaceFlux"/>')
-                _append_sediment_aux_output(lines, sediment_debug_enabled)
+                _append_sediment_aux_output(lines)
             lines.append('</stream>')
             lines.append('')
             lines.append('<stream name="timeSeriesStatsMonthlyOutput"')
@@ -1594,7 +1614,7 @@ def buildnml(case, caseroot, compname):
                 lines.append('    <var name="ecosys_diag_co3_sat_calc"/>')
                 lines.append('    <var name="ecosys_diag_co3_sat_arag"/>')
             if  ocn_sediment == 'true':
-                _append_sediment_aux_output(lines, sediment_debug_enabled)
+                _append_sediment_aux_output(lines)
             lines.append('</stream>')
             lines.append('')
             lines.append('<stream name="timeSeriesStatsMonthlyMaxOutput"')
